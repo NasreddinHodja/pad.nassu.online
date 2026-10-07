@@ -1,0 +1,38 @@
+#+TITLE: Using pad
+#+OPTIONS: ^:{}
+
+* Paths
+
+Any path is a pad: =/notes=, =/notes/today=, =/notes/today/later=. Pads are made by typing in them and deleted by emptying them. A path has up to 10 segments of up to 64 characters, 255 in all; =/_/…= is reserved for the API.
+
+* Roots and passwords
+
+The first segment is the path's root: =/notes/today= belongs to =notes=.
+
++ A root nobody has saved under is free. Opening it asks for a password (at least 8 characters), which then locks the root and every pad under it, for reading as well as writing.
++ A locked root asks for its password. Five wrong ones are free; after that each waits twice as long as the last, up to 15 minutes. A browser that has unlocked the root before, even if it locked since, only waits for its own wrong passwords; any other only for its address's (for IPv6, its /64's). No one else's wrong passwords ever make you wait.
++ *password*, in a pad's header, changes the root's password. Every other browser is signed out of the root.
++ *lock* signs this browser out of the root and forgets its keys.
+
+An unlock lasts 30 days unused, at most 180. The password can't be recovered: the pads are encrypted with it, so losing it loses them.
+
+* Saving
+
+A pad saves itself 600ms after you stop typing, when it loses focus, and when the tab is hidden. The status in the header says =unsaved=, =saving…= or =saved=; on a failure it retries every 5 seconds. Two people in one pad: the last save wins. A pad with nothing unsaved picks up others' saves every 5 seconds.
+
+A pad holds 512 KiB. Saves are capped at 60 a minute per address.
+
+* Finder
+
+The field under the pad finds and makes pads under it.
+
+| key                          | does                                           |
+|------------------------------+------------------------------------------------|
+| =ctrl+/=                     | opens it from anywhere; inside it, closes it   |
+| =↑= / =ctrl+k= / =ctrl+p=    | the next match up                              |
+| =↓= / =ctrl+j= / =ctrl+n=    | the next match down                            |
+| =↵=                          | opens the match, or makes the typed path if none |
+| =ctrl+↵=                     | makes the typed path, even when something matches |
+| =esc=                        | closes it                                      |
+
+Matching is fzf-like: the typed characters in order, word starts and runs ranked first.

@@ -1,0 +1,39 @@
+#+TITLE: Overview
+#+OPTIONS: ^:{}
+
+SvelteKit on Bun (=@sveltejs/adapter-bun=), one SQLite file through =bun:sqlite=. Pages render on the server; everything about a pad's text happens in the browser.
+
+* Routes
+
+| route                              | file                                     |
+|------------------------------------+------------------------------------------|
+| =/=                                | =src/routes/+page.svelte=: open a path   |
+| =/<path>=                          | =src/routes/[...path]/=: the gate or the editor |
+| =/_/<root>/auth/<action>=          | claim, unlock, change password, lock     |
+| =/_/<root>/pads=, =/_/<root>/pads/<id>= | list, read, write, delete sealed pads |
+
+=/<path>='s load (=+page.server.ts=) normalises the path (redirecting =a//b/= to =a/b=) and returns only the root's state: =open=, =locked= or =unlocked=, and its salt. The page then shows:
+
++ =Gate.svelte= to claim or unlock the root, when the server or the browser lacks what it needs: an unlock cookie on one side, the keys in IndexedDB on the other;
++ =Gate.svelte= in =password= mode, for =?password=;
++ =Pad.svelte= otherwise, with =Finder.svelte= under it.
+
+* The editor
+
+=Pad.svelte= loads the pad and the root's list of paths, decrypts both, and keeps =saved=, the text the server has as far as it knows. Typing schedules a save 600ms out; blur, a hidden tab and navigating away save at once. Only one save runs at a time. A failed one retries after 5 seconds. Every 5 seconds, if nothing is unsaved, it reloads the pad and takes the server's text if it changed, keeping the selection. An empty pad is deleted rather than saved, so it drops out of its parent's list.
+
+* Database
+
+=src/lib/server/db.ts= and =src/lib/server/auth.ts=. =PAD_DB= names the file (=data/pad.db= in dev). WAL mode.
+
++ =sealed= :: one row per pad: its root, =id= (the HMAC of its path), =name= (its path, encrypted), =data= (its text, encrypted), =updated_at=.
++ =roots= :: one row per claimed root: salt, SHA-256 of =auth=, the encrypted root key.
++ =unlocks= :: one row per browser per root it unlocked: SHA-256 of the cookie's token, when it was made, when it was last used.
++ =devices= :: one row per browser per root it has ever unlocked: SHA-256 of the device cookie's token, when it was last seen there. Kept through locking; gone after 180 days unseen.
++ =pads= :: pads from before encryption, in plain text. The first browser to unlock their root encrypts them into =sealed= and deletes them here.
+
+Rate limits and wrong-password counts are in memory (=limits.ts=, =auth.ts=): a restart clears them.
+
+* Deployment
+
+=deploy/pad.service= runs the build as a sandboxed systemd service on =127.0.0.1:5512=, behind Caddy (=deploy/Caddyfile=), which sets HSTS, =nosniff=, =Referrer-Policy: no-referrer= and =Cross-Origin-Opener-Policy=, and keeps no access log. The app sets the =Content-Security-Policy= itself (=vite.config.ts=), with a nonce per page. =deploy.sh= lints, checks, tests, builds, uploads and restarts.

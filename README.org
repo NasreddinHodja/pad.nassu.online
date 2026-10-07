@@ -1,0 +1,46 @@
+#+TITLE: pad
+#+DESCRIPTION: A notepad at every URL
+#+OPTIONS: ^:{}
+
+A notepad at every URL, like dontpad: open =pad.nassu.online/anything= and type, and it saves. The first segment of a path is its root. Whoever saves under a root first sets its password, which then guards reading and writing the root and every pad under it.
+
+* Documentation
+
++ [[file:docs/guide/use.org][Using pad]]
++ [[file:docs/README.org][Everything else]]: architecture, encryption, the HTTP API
+
+* Security
+
+Pads are encrypted in the browser with keys from their root's password: the server never sees a password, a pad's text or a subpad's name. How: [[file:docs/architecture/encryption.org][Encryption and access]]. Lose a root's password and its pads are gone.
+
+* Develop
+
+SvelteKit, Svelte 5, Tailwind 4 and SQLite (=bun:sqlite=), on Bun.
+
+#+begin_src sh
+bun install
+bun run dev      # http://localhost:5173, database in data/pad.db
+bun test
+bun run check    # types
+bun run lint
+#+end_src
+
+=static/og.png=, the link preview, is drawn by =python3 scripts/og.py= (Pillow).
+
+The browser's crypto only runs on =localhost= or HTTPS: from a phone on the LAN, =adb reverse tcp:5173 tcp:5173= and open =localhost:5173= on it.
+
+* Deploy
+
+A systemd service behind Caddy on a VPS: =deploy/pad.service= and =deploy/Caddyfile= say how to set one up. Then, with =DEST= and =PORT= in =deploy.env=:
+
+#+begin_src sh
+./deploy.sh      # lint, check, test, build, upload, restart
+#+end_src
+
+* Limits
+
+A pad holds 512 KiB, a path 255 characters over at most 10 segments of 64. Saves are capped at 60 a minute per address, and wrong passwords back off after five, up to 15 minutes (=src/lib/server/limits.ts=, =src/lib/server/auth.ts=).
+
+* Credits
+
+The font is WebPlus IBM VGA 9x16 from VileR's [[https://int10h.org/oldschool-pc-fonts/][Ultimate Oldschool PC Font Pack]], CC BY-SA 4.0. The background is Anthony Thyssen's =marble.xbm=.

@@ -1,0 +1,81 @@
+#+TITLE: HTTP
+#+OPTIONS: ^:{}
+
+The routes under =/_/= that the page calls (=src/lib/api.ts=). Everything sent is encrypted first; see [[file:../architecture/encryption.org][Encryption and access]].
+
+* Conventions
+
++ =<root>= is a root's name, percent-encoded. A name that isn't a single valid segment: =400=.
++ Bytes in JSON are base64url without padding.
++ Errors are JSON, ={"status": 401, "message": "/x is locked"}=.
++ Every route but =GET=s needs =Sec-Fetch-Site: same-origin=, or an =Origin= matching the page's when the browser doesn't send that. Otherwise: =403=.
++ Routes marked /unlocked/ need the unlock cookie for =<root>=. Otherwise, or if the root is unclaimed: =401=.
++ Routes marked /rate-limited/ count toward 60 writes a minute per address. Over that: =429=.
++ Behind Caddy the client's address is the last =X-Forwarded-For= hop (=ADDRESS_HEADER=, =XFF_DEPTH= in =deploy/pad.service=). Bodies are capped at 1 MiB (=BODY_SIZE_LIMIT=).
+
+* Auth
+
+=src/routes/_/[root]/auth/[action]/+server.ts=. All =POST=, all rate-limited.
+
+** POST /_/<root>/auth/claim
+
+Sets a free root's password and unlocks it for this browser.
+
+Body: ={"salt": 16 bytes, "auth": 32 bytes, "sealedKey": 60 bytes}=.
+
++ =204=, with the unlock cookie.
++ =409= if the root was claimed meanwhile.
+
+** POST /_/<root>/auth/unlock
+
+Body: ={"auth": 32 bytes}=.
+
++ =200= ={"sealedKey": 60 bytes}=, with the unlock cookie.
++ =401= for a wrong =auth=. After 5, each failure doubles the wait, up to 15 minutes; meanwhile =429=, with the wait in the message. A browser whose device cookie has unlocked the root before is counted on its own; any other per address, IPv6 per /64. Nothing is counted per root, so no one can keep others out of it.
+
+A successful claim, unlock or password change also sets the device cookie, =__Host-pad-device=, and records it for the root.
+
+** POST /_/<root>/auth/password
+
+/Unlocked./ Body: ={"current": 32 bytes, "salt": 16 bytes, "auth": 32 bytes, "sealedKey": 60 bytes}=: the current =auth=, then the new password's. =current= is checked and backed off as in unlock.
+
++ =204=. Every other browser's unlock of the root is revoked.
+
+** POST /_/<root>/auth/lock
+
+Ends this browser's unlock of the root. =204=, unlocked or not.
+
+* Pads
+
+** GET /_/<root>/pads
+
+/Unlocked./ Every pad of the root, and its pads from before encryption.
+
+=200= ={"pads": [{"id": "…", "name": "<sealed path>"}], "legacy": [{"path": "a/b", "content": "…"}]}=. At most 5000 pads.
+
+** DELETE /_/<root>/pads
+
+/Unlocked./ Deletes the plain copies of pads from before encryption, once they're sealed.
+
+Body: ={"paths": ["a/b", …]}=, every one under =<root>=. =204=.
+
+** GET /_/<root>/pads/<id>
+
+/Unlocked./ =<id>= is 43 base64url characters.
+
++ =200=, =application/octet-stream=: the sealed text, with =X-Updated-At= in Unix milliseconds.
++ =204= if there's no such pad.
+
+** PUT /_/<root>/pads/<id>
+
+/Unlocked, rate-limited./ Saves a pad; the last write wins.
+
++ Body: the sealed text, at most 512 KiB + 28 bytes; over: =413=.
++ =X-Pad-Name=: the sealed path, base64url, at most 1400 characters.
++ =X-Pad-Legacy= (optional): the percent-encoded path of the plain pad this replaces. The plain copy is deleted in the same transaction, and the save isn't rate-limited; if the plain copy is already gone, =409=.
+
+=200= ={"updatedAt": <ms>}=, or =204= for a legacy migration.
+
+** DELETE /_/<root>/pads/<id>
+
+/Unlocked, rate-limited./ What saving an empty pad does. =204=.

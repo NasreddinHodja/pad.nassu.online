@@ -1,0 +1,19 @@
+#+TITLE: pad documentation
+#+OPTIONS: ^:{}
+
+* Guide
+
++ [[file:guide/use.org][Using pad]]: paths, passwords, the subpad finder, locking
+
+* Architecture
+
++ [[file:architecture/overview.org][Overview]]: routes, the editor's save loop, the database
++ [[file:architecture/encryption.org][Encryption and access]]: what the browser derives from a password, what the server keeps
+
+* API
+
++ [[file:api/http.org][HTTP]]: the =/_/…= routes the page calls
+
+* Design
+
+The UI follows konigslibrary's design system (=docs/design/system.org= in that repo): the VGA 9x16 font at 16px and 32px, the bubblegum palette, raised panels over a dither texture, 48px touch targets.
