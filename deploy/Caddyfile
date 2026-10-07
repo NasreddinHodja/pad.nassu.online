@@ -4,18 +4,18 @@
 # No `log` directive on purpose: access logs would write every subpad's path
 # to disk, which the database keeps only as HMACs.
 pad.nassu.online {
-	encode zstd gzip
-	header {
-		# As konigslibrary's: no includeSubDomains, the other subdomains aren't this.
-		Strict-Transport-Security "max-age=63072000"
-		X-Content-Type-Options nosniff
-		# Links in a pad would otherwise tell the site they lead to the pad's path.
-		Referrer-Policy no-referrer
-		# A page this one opens can't reach back into it through window.opener.
-		Cross-Origin-Opener-Policy same-origin
-		# The Content-Security-Policy is the app's own (vite.config.ts): it needs
-		# a fresh nonce per page.
-		-Server
-	}
-	reverse_proxy 127.0.0.1:5512
+  encode zstd gzip
+  header {
+    # As konigslibrary's: no includeSubDomains, the other subdomains aren't this.
+    Strict-Transport-Security "max-age=63072000"
+    X-Content-Type-Options nosniff
+    # Links in a pad would otherwise tell the site they lead to the pad's path.
+    Referrer-Policy no-referrer
+    # A page this one opens can't reach back into it through window.opener.
+    Cross-Origin-Opener-Policy same-origin
+    # The Content-Security-Policy is the app's own (vite.config.ts): it needs
+    # a fresh nonce per page.
+    -Server
+  }
+  reverse_proxy 127.0.0.1:5512
 }
