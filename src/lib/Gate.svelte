@@ -49,10 +49,6 @@
 	}
 </script>
 
-<svelte:head>
-	<title>{path} · pad</title>
-</svelte:head>
-
 {#snippet field(
 	label: string,
 	autocomplete: 'current-password' | 'new-password',

@@ -13,6 +13,7 @@
 <svelte:head>
 	<title>pad.nassu.online</title>
 	<meta name="description" content="a notepad at every url" />
+	<meta property="og:title" content="pad" />
 </svelte:head>
 
 <main class="flex min-h-dvh flex-col items-center justify-center px-3 py-8">

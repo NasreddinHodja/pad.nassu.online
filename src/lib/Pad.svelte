@@ -135,10 +135,6 @@
 	});
 </script>
 
-<svelte:head>
-	<title>{path} · pad</title>
-</svelte:head>
-
 <div class="mx-auto flex h-dvh max-w-6xl flex-col gap-3 p-3 sm:p-6">
 	<header
 		class="flex flex-wrap items-center gap-x-4 panel px-3 py-1 pointer-coarse:gap-y-2 pointer-coarse:py-2"
