@@ -1,6 +1,10 @@
 import { error } from '@sveltejs/kit';
 
 export const MAX_BYTES = 512 * 1024;
+/** A pad's text once sealed: AES-GCM adds a 12-byte nonce and a 16-byte tag. */
+export const MAX_SEALED = MAX_BYTES + 28;
+/** A sealed path, in base64: 255 characters of up to 4 bytes, sealed. */
+export const MAX_SEALED_NAME = 1400;
 export const MAX_PATH = 255;
 export const MAX_SEGMENT = 64;
 export const MAX_DEPTH = 10;
@@ -26,6 +30,8 @@ export function checkRate(ip: string) {
 /** `a//b/` → `a/b`. Null if it can't be a pad. */
 export function normalizePath(raw: string): string | null {
 	const segments = raw.split('/').filter((s) => s !== '');
+	// `/_/…` is the API's.
+	if (segments[0] === '_') return null;
 	const path = segments.join('/');
 	if (path.length > MAX_PATH || segments.length > MAX_DEPTH) return null;
 	for (const s of segments) {

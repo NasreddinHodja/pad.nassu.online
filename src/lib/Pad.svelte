@@ -1,25 +1,32 @@
 <script lang="ts">
-	import { beforeNavigate } from '$app/navigation';
+	import { beforeNavigate, goto } from '$app/navigation';
 	import { onMount, untrack } from 'svelte';
+	import * as api from './api';
+	import { forgetKeys, type Keys } from './crypto';
 	import Finder from './Finder.svelte';
 	import { href } from './href';
 
-	let { path, initial, subpads }: { path: string; initial: string; subpads: string[] } = $props();
+	let { path, root, keys }: { path: string; root: string; keys: Keys } = $props();
 
 	const SAVE_DELAY = 600;
 	const POLL = 5000;
 	const RETRY = 5000;
 
 	const segments = $derived(path.split('/'));
-	const url = untrack(() => href(path.split('/')));
+	// One pad per editor: the page keys it on the path.
+	const where = untrack(() => ({ path, root, keys }));
 
-	let content = $state(untrack(() => initial));
-	// What the server has, as far as we know.
-	let saved = untrack(() => initial);
-	let status = $state('saved');
+	let content = $state('');
+	// What the server has, as far as we know; null until it's been fetched.
+	let saved: string | null = null;
+	let status = $state('opening…');
+	let subpads = $state<string[]>([]);
+	let ready = $state(false);
 	let textarea: HTMLTextAreaElement;
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	let saving = false;
+
+	const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
 
 	function schedule(delay = SAVE_DELAY) {
 		clearTimeout(timer);
@@ -33,6 +40,7 @@
 
 	async function save() {
 		clearTimeout(timer);
+		if (saved === null) return;
 		if (saving) return schedule();
 		if (content === saved) {
 			status = 'saved';
@@ -42,20 +50,12 @@
 		saving = true;
 		status = 'saving…';
 		try {
-			const res = await fetch(url, {
-				method: 'PUT',
-				body,
-				headers: { 'content-type': 'text/plain; charset=utf-8' }
-			});
-			if (!res.ok) {
-				const message = (await res.json().catch(() => null))?.message;
-				throw new Error(message ?? `save failed (${res.status})`);
-			}
+			await api.save(where.root, where.keys, where.path, body);
 			saved = body;
 			status = content === saved ? 'saved' : 'unsaved';
 			if (content !== saved) schedule();
 		} catch (e) {
-			status = '► ' + (e instanceof Error ? e.message : 'save failed') + ', retrying';
+			status = '► ' + message(e, 'save failed') + ', retrying';
 			schedule(RETRY);
 		} finally {
 			saving = false;
@@ -64,52 +64,74 @@
 
 	// Someone else's last write, shown while we have nothing unsaved.
 	async function refresh() {
-		if (document.hidden || saving || content !== saved) return;
-		const res = await fetch(url, { headers: { accept: 'text/plain' } }).catch(() => null);
-		if (!res?.ok) return;
-		const remote = await res.text();
-		if (remote === saved || content !== saved || saving) return;
+		if (document.hidden || saving || saved === null || content !== saved) return;
+		const remote = await api.load(where.root, where.keys, where.path).catch(() => null);
+		if (remote === null || remote === saved || content !== saved || saving) return;
 		const { selectionStart, selectionEnd } = textarea;
 		content = saved = remote;
 		requestAnimationFrame(() => textarea.setSelectionRange(selectionStart, selectionEnd));
 	}
 
+	/** Every pad under this one, relative to it, with the ones only a deeper pad implies. */
+	function under(paths: string[]) {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- built and dropped here
+		const names = new Set<string>();
+		for (const p of paths) {
+			if (!p.startsWith(where.path + '/')) continue;
+			const parts = p.slice(where.path.length + 1).split('/');
+			for (let i = 1; i <= parts.length; i++) names.add(parts.slice(0, i).join('/'));
+		}
+		return [...names].sort();
+	}
+
+	async function open() {
+		try {
+			const [text, paths] = await Promise.all([
+				api.load(where.root, where.keys, where.path),
+				api.list(where.root, where.keys)
+			]);
+			content = saved = text;
+			subpads = under(paths);
+			status = 'saved';
+			ready = true;
+			requestAnimationFrame(() => {
+				textarea.setSelectionRange(0, 0);
+				textarea.focus({ preventScroll: true });
+			});
+		} catch (e) {
+			status = '► ' + message(e, "couldn't open the pad");
+		}
+	}
+
 	onMount(() => {
-		// After bind:value has filled it: the value leaves the cursor at the end,
-		// and focusing would scroll to it.
-		textarea.setSelectionRange(0, 0);
-		textarea.focus({ preventScroll: true });
+		open();
 		const poll = setInterval(refresh, POLL);
-		const onVisible = () => !document.hidden && refresh();
-		// keepalive outlives the page, up to 64 KiB of body.
-		const onHide = () => {
-			if (content !== saved) fetch(url, { method: 'PUT', body: content, keepalive: true });
-		};
+		// Encrypting takes a moment the page may not get once it unloads, so a
+		// hidden tab saves straight away.
+		const onVisible = () => (document.hidden ? save() : refresh());
 		const onUnload = (e: BeforeUnloadEvent) => {
-			if (content !== saved) e.preventDefault();
+			if (saved !== null && content !== saved) e.preventDefault();
 		};
 		document.addEventListener('visibilitychange', onVisible);
-		window.addEventListener('pagehide', onHide);
 		window.addEventListener('beforeunload', onUnload);
 		return () => {
 			clearInterval(poll);
 			clearTimeout(timer);
 			document.removeEventListener('visibilitychange', onVisible);
-			window.removeEventListener('pagehide', onHide);
 			window.removeEventListener('beforeunload', onUnload);
 		};
 	});
 
-	// Saves first: locking signs this browser out of the root.
-	async function lockRoot(e: SubmitEvent) {
-		e.preventDefault();
-		const form = e.currentTarget as HTMLFormElement;
+	// Saves first: locking signs this browser out of the root and forgets its keys.
+	async function lock() {
 		await save();
-		if (content === saved) form.submit();
+		if (content !== saved) return;
+		await Promise.all([api.lock(where.root), forgetKeys(where.root)]).catch(() => {});
+		goto('/');
 	}
 
 	beforeNavigate(() => {
-		if (content !== saved) save();
+		if (saved !== null && content !== saved) save();
 	});
 </script>
 
@@ -137,13 +159,14 @@
 			>{status}</span
 		>
 		<a class="text-ink hover:text-hi hover:underline" href="?password">password</a>
-		<form method="post" action="?/lock" onsubmit={lockRoot}>
-			<button class="cursor-pointer text-ink hover:text-hi hover:underline">lock</button>
-		</form>
+		<button class="cursor-pointer text-ink hover:text-hi hover:underline" onclick={lock}
+			>lock</button
+		>
 	</header>
 
 	<textarea
 		bind:this={textarea}
+		readonly={!ready}
 		bind:value={content}
 		{oninput}
 		onblur={save}

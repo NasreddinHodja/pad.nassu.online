@@ -5,19 +5,26 @@
 // writing anything under it needs that password. Root pads saved before this
 // existed have none, and the next person to edit one claims it.
 //
+// The password never leaves the browser (see `#lib/crypto.ts`). What the
+// server gets is `auth`, 32 bytes the browser derives from it with Argon2id,
+// and keeps only its SHA-256: auth is as hard to guess as the password is
+// through Argon2id, so a slow hash here would add nothing. It also keeps the
+// salt, which anyone may have, and the root key sealed under the password,
+// which only an unlocked browser gets.
+//
 // Unlocking gives the browser one opaque token in an HttpOnly cookie; the
 // database keeps only its SHA-256, per root it unlocks, so a copy of the file
-// opens nothing. Passwords are Argon2id with OWASP's minimum parameters, as
-// in konigslibrary.
+// opens nothing.
 
 import { dev } from '$app/env';
 import type { Cookies, RequestEvent } from '@sveltejs/kit';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { db } from './db.ts';
 
-export const MIN_PASSWORD = 8;
-/** Bounds the work one request can ask for. */
-export const MAX_PASSWORD = 256;
+export const SALT_BYTES = 16;
+export const AUTH_BYTES = 32;
+/** A 32-byte key, AES-GCM's 12-byte nonce and 16-byte tag. */
+export const SEALED_KEY_BYTES = 60;
 
 const DAY = 24 * 60 * 60 * 1000;
 /** An unlock unused this long, or this old, is over. */
@@ -29,11 +36,11 @@ const TOUCH_EVERY = 60 * 60 * 1000;
 // __Host-: only this host, over https, on every path. Dev runs on plain http.
 const COOKIE = dev ? 'pad' : '__Host-pad';
 
-const ARGON2 = { algorithm: 'argon2id', memoryCost: 19 * 1024, timeCost: 2 } as const;
-
 db.run(`CREATE TABLE IF NOT EXISTS roots (
 	name TEXT PRIMARY KEY,
-	password_hash TEXT NOT NULL,
+	salt BLOB NOT NULL,
+	auth_hash BLOB NOT NULL,
+	sealed_key BLOB NOT NULL,
 	created_at INTEGER NOT NULL
 ) WITHOUT ROWID`);
 db.run(`CREATE TABLE IF NOT EXISTS unlocks (
@@ -45,13 +52,17 @@ db.run(`CREATE TABLE IF NOT EXISTS unlocks (
 ) WITHOUT ROWID`);
 db.run('CREATE INDEX IF NOT EXISTS unlocks_by_root ON unlocks (root)');
 
-const hashStmt = db.query<{ password_hash: string }, [string]>(
-	'SELECT password_hash FROM roots WHERE name = ?'
+type Root = { salt: Uint8Array; auth_hash: Uint8Array; sealed_key: Uint8Array };
+const rootStmt = db.query<Root, [string]>(
+	'SELECT salt, auth_hash, sealed_key FROM roots WHERE name = ?'
 );
 const claimStmt = db.query(
-	'INSERT OR IGNORE INTO roots (name, password_hash, created_at) VALUES (?, ?, ?)'
+	`INSERT OR IGNORE INTO roots (name, salt, auth_hash, sealed_key, created_at)
+	 VALUES (?, ?, ?, ?, ?)`
 );
-const setHashStmt = db.query('UPDATE roots SET password_hash = ? WHERE name = ?');
+const setPasswordStmt = db.query(
+	'UPDATE roots SET salt = ?, auth_hash = ?, sealed_key = ? WHERE name = ?'
+);
 const unlockedStmt = db.query<{ last_seen: number }, [Uint8Array, string, number]>(
 	`SELECT last_seen FROM unlocks
 	 WHERE token_hash = ?1 AND root = ?2 AND last_seen > ?3 - ${IDLE} AND created_at > ?3 - ${ABSOLUTE}`
@@ -69,42 +80,43 @@ const expireStmt = db.query(
 
 export const rootOf = (path: string) => path.split('/')[0];
 
-const tokenHash = (token: string) => createHash('sha256').update(token).digest();
+const sha256 = (data: string | Uint8Array) => createHash('sha256').update(data).digest();
+const tokenHash = sha256;
 
-/** Why a new password can't be used, if it can't. Counted in characters. */
-export function checkPassword(password: string) {
-	const length = [...password].length;
-	if (length < MIN_PASSWORD) return `the password needs at least ${MIN_PASSWORD} characters`;
-	if (length > MAX_PASSWORD) return `the password can have at most ${MAX_PASSWORD} characters`;
-	return null;
-}
-
-export function isClaimed(root: string) {
-	return hashStmt.get(root) !== null;
+/** What the browser needs to turn a password into keys; public. */
+export function saltOf(root: string) {
+	return rootStmt.get(root)?.salt ?? null;
 }
 
 /** Sets the root's password unless someone already has. */
-export async function claim(root: string, password: string) {
-	const hash = await Bun.password.hash(password, ARGON2);
-	return claimStmt.run(root, hash, Date.now()).changes === 1;
+export function claim(root: string, salt: Uint8Array, auth: Uint8Array, sealedKey: Uint8Array) {
+	return claimStmt.run(root, salt, sha256(auth), sealedKey, Date.now()).changes === 1;
 }
 
-export async function verify(root: string, password: string) {
-	const hash = hashStmt.get(root)?.password_hash;
-	if (!hash || password.length > MAX_PASSWORD * 4) return false;
-	return Bun.password.verify(password, hash);
+/** The sealed root key, if `auth` is the root's. */
+export function verify(root: string, auth: Uint8Array) {
+	const row = rootStmt.get(root);
+	if (!row) return null;
+	return timingSafeEqual(sha256(auth), row.auth_hash) ? row.sealed_key : null;
 }
 
-export async function setPassword(root: string, password: string, keep: Cookies) {
-	setHashStmt.run(await Bun.password.hash(password, ARGON2), root);
-	revokeOthersStmt.run(root, tokenHash(keep.get(COOKIE) ?? ''));
+/** Signs every other browser out of the root. */
+export function setPassword(
+	root: string,
+	next: { salt: Uint8Array; auth: Uint8Array; sealedKey: Uint8Array },
+	keep: Cookies
+) {
+	db.transaction(() => {
+		setPasswordStmt.run(next.salt, sha256(next.auth), next.sealedKey, root);
+		revokeOthersStmt.run(root, tokenHash(keep.get(COOKIE) ?? ''));
+	})();
 }
 
 export type Access = 'open' | 'unlocked' | 'locked';
 
 /** Open: no one has claimed the root yet. */
 export function access(cookies: Cookies, root: string): Access {
-	if (!isClaimed(root)) return 'open';
+	if (!rootStmt.get(root)) return 'open';
 	const token = cookies.get(COOKIE);
 	if (!token) return 'locked';
 	const now = Date.now();

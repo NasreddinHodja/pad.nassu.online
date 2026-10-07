@@ -1,69 +1,128 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
+	import * as api from './api';
+	import { checkPassword, type Keys } from './crypto';
 	import { href } from './href';
 
 	let {
 		path,
 		root,
 		mode,
-		problem
-	}: { path: string; root: string; mode: 'claim' | 'unlock' | 'password'; problem?: string } =
-		$props();
+		salt,
+		onunlock
+	}: {
+		path: string;
+		root: string;
+		mode: 'claim' | 'unlock' | 'password';
+		salt: string | null;
+		onunlock: (keys: Keys) => void;
+	} = $props();
 
+	// The fields have no names, so even with scripts off the form can't send
+	// a password anywhere: it only ever leaves through the code below, as keys.
+	let current = $state('');
+	let next = $state('');
+	let confirm = $state('');
 	let busy = $state(false);
+	let problem = $state('');
+
+	async function onsubmit(e: SubmitEvent) {
+		e.preventDefault();
+		if (mode !== 'unlock') {
+			const bad = checkPassword(next) ?? (next !== confirm ? "the passwords don't match" : null);
+			if (bad) return (problem = bad);
+		}
+		busy = true;
+		problem = '';
+		try {
+			if (mode === 'claim') onunlock(await api.claim(root, next));
+			else if (mode === 'unlock') onunlock(await api.unlock(root, current, salt!));
+			else {
+				await api.changePassword(root, current, next, salt!);
+				await goto(href(path.split('/')), { invalidateAll: true });
+			}
+		} catch (e) {
+			problem = e instanceof Error ? e.message : 'something went wrong';
+		} finally {
+			busy = false;
+		}
+	}
 </script>
 
 <svelte:head>
 	<title>{path} · pad</title>
 </svelte:head>
 
-{#snippet input(name: string, label: string, autocomplete: 'current-password' | 'new-password')}
+{#snippet field(
+	label: string,
+	autocomplete: 'current-password' | 'new-password',
+	get: () => string,
+	set: (v: string) => void
+)}
 	<label class="flex flex-col gap-1">
 		<span class="text-dim">{label}</span>
 		<input
 			class="h-8 border border-ink bg-bg px-2 text-fg pointer-coarse:h-10"
 			type="password"
-			{name}
 			{autocomplete}
 			required
-			minlength={name === 'password' ? undefined : 8}
 			maxlength="256"
+			bind:value={get, set}
 		/>
 	</label>
 {/snippet}
 
 <main class="flex min-h-svh flex-col items-center justify-center gap-6 px-3 py-12">
-	<form
-		class="flex w-full max-w-xl flex-col gap-4 panel p-6"
-		method="post"
-		action="?/{mode}"
-		use:enhance={() => {
-			busy = true;
-			return async ({ update }) => {
-				await update();
-				busy = false;
-			};
-		}}
-	>
+	<form class="flex w-full max-w-xl flex-col gap-4 panel p-6" {onsubmit}>
 		<!-- For password managers: what the password is for. -->
-		<input type="text" name="username" autocomplete="username" value="/{root}" hidden readonly />
+		<input type="text" autocomplete="username" value="/{root}" hidden readonly />
 		{#if mode === 'claim'}
 			<h1 class="text-xl break-all underline">/{root} is free</h1>
 			<p class="text-dim">
-				set its password. it locks /{root} and every pad under it, for reading too. there's no way to
-				get it back if you lose it.
+				set its password. it locks /{root} and every pad under it, for reading too. the pads are encrypted
+				with it in your browser: the server never sees it, so if you lose it, the pads are gone.
 			</p>
-			{@render input('new', 'password', 'new-password')}
-			{@render input('confirm', 'again', 'new-password')}
+			{@render field(
+				'password',
+				'new-password',
+				() => next,
+				(v) => (next = v)
+			)}
+			{@render field(
+				'again',
+				'new-password',
+				() => confirm,
+				(v) => (confirm = v)
+			)}
 		{:else if mode === 'unlock'}
 			<h1 class="text-xl break-all underline">/{root} is locked</h1>
-			{@render input('password', 'password', 'current-password')}
+			{@render field(
+				'password',
+				'current-password',
+				() => current,
+				(v) => (current = v)
+			)}
 		{:else}
 			<h1 class="text-xl break-all underline">/{root}'s password</h1>
 			<p class="text-dim">changing it signs every other browser out of /{root}.</p>
-			{@render input('password', 'current password', 'current-password')}
-			{@render input('new', 'new password', 'new-password')}
-			{@render input('confirm', 'again', 'new-password')}
+			{@render field(
+				'current password',
+				'current-password',
+				() => current,
+				(v) => (current = v)
+			)}
+			{@render field(
+				'new password',
+				'new-password',
+				() => next,
+				(v) => (next = v)
+			)}
+			{@render field(
+				'again',
+				'new-password',
+				() => confirm,
+				(v) => (confirm = v)
+			)}
 		{/if}
 		{#if problem}
 			<p class="text-ink" role="alert">► {problem}</p>
@@ -73,7 +132,13 @@
 				class="hit relative h-8 cursor-pointer border border-ink bg-ink px-3 text-bg shadow-raised hover:bg-hi active:translate-x-0.5 active:translate-y-0.5 active:shadow-sunk disabled:cursor-wait pointer-coarse:h-10"
 				disabled={busy}
 			>
-				{mode === 'claim' ? 'claim' : mode === 'unlock' ? 'unlock' : 'change'}
+				{busy
+					? 'deriving keys…'
+					: mode === 'claim'
+						? 'claim'
+						: mode === 'unlock'
+							? 'unlock'
+							: 'change'}
 			</button>
 			{#if mode === 'password'}
 				<a class="text-ink hover:text-hi hover:underline" href={href(path.split('/'))}>cancel</a>
