@@ -3,6 +3,7 @@
   import { onMount, untrack } from 'svelte';
   import * as api from './api';
   import { forgetKeys, type Keys } from './crypto';
+  import { download, exportPads } from './export';
   import Finder from './Finder.svelte';
   import Share from './Share.svelte';
   import { href } from './href';
@@ -124,6 +125,27 @@
     };
   });
 
+  let exporting = false;
+
+  // Saves first, so the export has what's on screen.
+  async function exportAll() {
+    if (exporting) return;
+    exporting = true;
+    try {
+      await save();
+      if (content !== saved) return;
+      const blob = await exportPads(where.root, where.keys, where.path, (done, total) => {
+        status = `exporting ${done}/${total}…`;
+      });
+      download(blob, where.path.replaceAll('/', '-') + '.zip');
+      status = 'exported';
+    } catch (e) {
+      status = '► ' + message(e, 'export failed');
+    } finally {
+      exporting = false;
+    }
+  }
+
   // Saves first: locking signs this browser out of the root and forgets its keys.
   async function lock() {
     await save();
@@ -163,6 +185,11 @@
       class="hit relative cursor-pointer text-ink hover:text-hi hover:underline disabled:cursor-default disabled:opacity-40"
       disabled={!ready}
       onclick={() => (sharing = true)}>share</button
+    >
+    <button
+      class="hit relative cursor-pointer text-ink hover:text-hi hover:underline disabled:cursor-default disabled:opacity-40"
+      disabled={!ready}
+      onclick={exportAll}>export</button
     >
     <a class="hit relative text-ink hover:text-hi hover:underline" href="?password">password</a>
     <button

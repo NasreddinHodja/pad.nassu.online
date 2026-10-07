@@ -36,8 +36,9 @@ const putStmt = db.query(
    ON CONFLICT(root, id) DO UPDATE SET name = ?3, data = ?4, updated_at = ?5`
 );
 const deleteStmt = db.query('DELETE FROM sealed WHERE root = ? AND id = ?');
-const listStmt = db.query<{ id: string; name: string }, [string]>(
-  'SELECT id, name FROM sealed WHERE root = ? ORDER BY id LIMIT 5000'
+// `size`, the sealed text's, for an export to know what it's in for.
+const listStmt = db.query<{ id: string; name: string; size: number }, [string]>(
+  'SELECT id, name, length(data) AS size FROM sealed WHERE root = ? ORDER BY id LIMIT 5000'
 );
 // The root's own pad and every one under `root/`: '0' is the character after
 // '/', so the range is exactly the paths starting with `root/`.
