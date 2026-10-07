@@ -24,3 +24,6 @@ vite.config.ts.timestamp-*
 /data
 
 notes.org
+
+# Deploy
+deploy.env
