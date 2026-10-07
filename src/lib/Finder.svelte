@@ -15,6 +15,7 @@
 	let open = $state(false);
 	let selected = $state(0);
 	let list = $state<HTMLUListElement>();
+	let input = $state<HTMLInputElement>();
 
 	const matches = $derived(rank(items, query.trim()));
 	const shown = $derived(matches.slice(0, LIMIT));
@@ -49,11 +50,20 @@
 		} else if (key === 'Enter') {
 			if (shown.length) go(shown[selected].item);
 			else if (newPath) go(newPath);
-		} else if (key === 'Escape') close();
+		} else if (key === 'Escape' || key === 'ctrl+/') close();
 		else return;
 		e.preventDefault();
 	}
+
+	// ctrl+/ from anywhere opens it; in the field it closes it again.
+	function onwindowkeydown(e: KeyboardEvent) {
+		if (!e.ctrlKey || e.key !== '/' || e.defaultPrevented) return;
+		e.preventDefault();
+		input?.focus();
+	}
 </script>
+
+<svelte:window onkeydown={onwindowkeydown} />
 
 {#snippet highlighted(item: string, hits: number[])}
 	{#each item as ch, i (i)}{#if hits.includes(i)}<span class="underline">{ch}</span
@@ -127,6 +137,7 @@
 		<span class="text-ink">&gt;</span>
 		<input
 			class="h-full w-full min-w-0 bg-transparent text-fg placeholder:text-dim focus-visible:outline-none!"
+			bind:this={input}
 			bind:value={query}
 			onfocus={() => (open = true)}
 			onblur={() => (open = false)}
