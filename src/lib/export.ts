@@ -14,7 +14,10 @@ const PARALLEL = 4;
 const MiB = (n: number) => `${Math.ceil(n / 1024 / 1024)} MiB`;
 const utf8 = new TextEncoder();
 
-export async function exportPads(
+export type Pad = { path: string; text: string };
+
+/** The pad and every pad under it, by path; refused past MAX_EXPORT before fetching any. */
+export async function collect(
   root: string,
   keys: Keys,
   path: string,
@@ -23,28 +26,41 @@ export async function exportPads(
   const pads = (await api.sizes(root, keys)).filter(
     (p) => p.path === path || p.path.startsWith(path + '/')
   );
-  if (!pads.length) throw new Error('nothing to export: the pad is empty');
   const total = pads.reduce((n, p) => n + p.size, 0);
   if (total > MAX_EXPORT)
     throw new Error(
       `/${path} and its pads come to ${MiB(total)}, over the ${MiB(MAX_EXPORT)} an export takes`
     );
 
-  const base = path.split('/').at(-1)!;
-  const files: { name: string; data: Uint8Array }[] = [];
+  const out: Pad[] = [];
   let next = 0;
   progress(0, pads.length);
   async function worker() {
     while (next < pads.length) {
       const pad = pads[next++];
-      const text = await api.load(root, keys, pad.path);
-      files.push({ name: base + pad.path.slice(path.length) + '.org', data: utf8.encode(text) });
-      progress(files.length, pads.length);
+      out.push({ path: pad.path, text: await api.load(root, keys, pad.path) });
+      progress(out.length, pads.length);
     }
   }
   await Promise.all(Array.from({ length: PARALLEL }, worker));
-  files.sort((a, b) => a.name.localeCompare(b.name));
-  return zip(files);
+  return out.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+export async function exportPads(
+  root: string,
+  keys: Keys,
+  path: string,
+  progress: (done: number, total: number) => void
+) {
+  const pads = await collect(root, keys, path, progress);
+  if (!pads.length) throw new Error('nothing to export: the pad is empty');
+  const base = path.split('/').at(-1)!;
+  return zip(
+    pads.map((p) => ({
+      name: base + p.path.slice(path.length) + '.org',
+      data: utf8.encode(p.text)
+    }))
+  );
 }
 
 /** Hands the browser a file to save. */

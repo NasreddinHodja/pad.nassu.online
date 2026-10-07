@@ -146,15 +146,22 @@ export const sealName = async (keys: Keys, id: string, path: string) =>
 export const openName = async (keys: Keys, id: string, sealed: string) =>
   utf8Decode.decode(await open(keys.content, fromBase64(sealed), `pad name\n${id}`));
 
-// A read-only link: a copy of a pad sealed under a key of its own, which the
-// link carries after its `#`, so the server never gets it. The root keeps the
-// key too, sealed, for its owners to list the links again.
+// A read-only link: a copy of a pad and those under it, sealed under a key of
+// its own, which the link carries after its `#`, so the server never gets it.
+// The root keeps the key too, sealed, for its owners to list the links again.
 export type Snapshot = { path: string; text: string };
 
 const shareKey = (key: Bytes, usage: KeyUsage) =>
   crypto.subtle.importKey('raw', key, 'AES-GCM', false, [usage]);
 
-// The path, a newline (which no path has), then the text.
+// What `api.share` makes: the pads, deflated.
+export const sealShare = async (key: Bytes, id: string, plain: Bytes) =>
+  seal(await shareKey(key, 'encrypt'), plain, `pad share tree\n${id}`);
+export const openShare = async (key: Bytes, id: string, data: Bytes) =>
+  open(await shareKey(key, 'decrypt'), data, `pad share tree\n${id}`);
+
+// Links from before subpads were shared: the one pad's path, a newline (which
+// no path has), then its text.
 export const sealSnapshot = async (key: Bytes, id: string, { path, text }: Snapshot) =>
   seal(await shareKey(key, 'encrypt'), utf8.encode(`${path}\n${text}`), `pad share\n${id}`);
 export async function openSnapshot(key: Bytes, id: string, data: Bytes): Promise<Snapshot> {

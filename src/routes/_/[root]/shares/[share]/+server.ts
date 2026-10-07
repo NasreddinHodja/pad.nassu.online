@@ -9,8 +9,15 @@ import {
   unlocked
 } from '#lib/server/api.ts';
 import { SEALED_KEY_BYTES } from '#lib/server/auth.ts';
-import { checkRate, MAX_SNAPSHOT } from '#lib/server/limits.ts';
-import { addShare, getShare, MAX_SHARES, removeShare } from '#lib/server/shares.ts';
+import { MAX_SHARE } from '#lib/limits.ts';
+import { checkRate } from '#lib/server/limits.ts';
+import {
+  addShare,
+  getShare,
+  MAX_SHARE_BYTES,
+  MAX_SHARES,
+  removeShare
+} from '#lib/server/shares.ts';
 import type { RequestHandler } from './$types';
 
 // A read-only link's copy, for anyone with the link: without the key after
@@ -37,8 +44,18 @@ export const PUT: RequestHandler = async (event) => {
   const id = shareIdParam(event.params.share);
   const pad = padIdParam(event.request.headers.get('x-pad-id') ?? '');
   const sealedKey = bytes(event.request.headers.get('x-share-key'), SEALED_KEY_BYTES);
-  const made = addShare(root, id, pad, sealedKey, await readCapped(event.request, MAX_SNAPSHOT));
-  if (made === 'full') error(409, `/${root} has ${MAX_SHARES} links, revoke some first`);
+  const made = addShare(
+    root,
+    id,
+    pad,
+    sealedKey,
+    await readCapped(event.request, MAX_SHARE, 'the link is over 1 MiB')
+  );
+  if (made === 'full')
+    error(
+      409,
+      `/${root}'s links are at ${MAX_SHARES} or ${MAX_SHARE_BYTES / 1024 / 1024} MiB, revoke some first`
+    );
   if (made === 'taken') error(409, 'that link id is taken, try again');
   return json({ createdAt: made });
 };

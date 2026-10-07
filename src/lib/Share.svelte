@@ -2,19 +2,28 @@
   import { onMount } from 'svelte';
   import * as api from './api';
   import type { Keys } from './crypto';
+  import type { Pad } from './export';
   import { fadeOut, flyIn } from './motion';
 
-  // The pad's read-only links: each a copy of the pad as it was when made.
+  // The pad's read-only links: each a copy of the pad and those under it as
+  // they were when made.
   let {
     root,
     keys,
     path,
-    text,
+    collect,
     onclose
-  }: { root: string; keys: Keys; path: string; text: () => string; onclose: () => void } = $props();
+  }: {
+    root: string;
+    keys: Keys;
+    path: string;
+    /** The pad and those under it, saved first. */
+    collect: (progress: (done: number, total: number) => void) => Promise<Pad[]>;
+    onclose: () => void;
+  } = $props();
 
   let links = $state<api.Share[] | null>(null);
-  let busy = $state(false);
+  let busy = $state('');
   let problem = $state('');
   let copied = $state('');
   // Revoking every link asks twice.
@@ -43,16 +52,18 @@
   }
 
   async function make() {
-    busy = true;
+    busy = 'reading…';
     problem = '';
     try {
-      const link = await api.share(root, keys, path, text());
+      const pads = await collect((done, total) => (busy = `reading ${done}/${total}…`));
+      busy = 'sealing…';
+      const link = await api.share(root, keys, path, pads);
       links = [...(links ?? []), link];
       await copy(link);
     } catch (e) {
       problem = message(e, "couldn't make the link");
     } finally {
-      busy = false;
+      busy = '';
     }
   }
 
@@ -101,8 +112,8 @@
   >
     <h2 class="underline">read-only links</h2>
     <p class="text-dim">
-      a link opens a copy of /{path} as it is when you make it, for anyone who has it. later edits don't
-      reach it.
+      a link opens a copy of /{path} and every pad under it, as they are when you make it, for anyone
+      who has it. later edits don't reach it.
     </p>
     {#if links === null}
       <p class="text-dim">looking…</p>
@@ -131,11 +142,11 @@
     <div class="flex items-center gap-3">
       <button
         class="hit relative h-8 cursor-pointer border border-ink bg-ink px-3 text-bg shadow-raised enabled:hover:bg-hi enabled:active:translate-x-0.5 enabled:active:translate-y-0.5 enabled:active:shadow-sunk disabled:cursor-wait pointer-coarse:h-10"
-        disabled={busy || links === null}
+        disabled={!!busy || links === null}
         onclick={make}
         {@attach (el) => el.focus()}
       >
-        {busy ? 'sealing…' : 'new link'}
+        {busy || 'new link'}
       </button>
       <button
         class="hit relative cursor-pointer text-ink hover:text-hi hover:underline"

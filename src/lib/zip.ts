@@ -2,6 +2,8 @@
 // can't read the pads. Deflated by the browser's own CompressionStream. No
 // zip64, so under 65535 files and 4 GiB, which an export keeps well under.
 
+import { deflate } from './deflate';
+
 export type File = { name: string; data: Uint8Array };
 
 const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
@@ -14,11 +16,6 @@ export function crc32(data: Uint8Array) {
   let crc = 0xffffffff;
   for (const byte of data) crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
   return (crc ^ 0xffffffff) >>> 0;
-}
-
-async function deflate(data: Uint8Array<ArrayBuffer>) {
-  const stream = new Blob([data]).stream().pipeThrough(new CompressionStream('deflate-raw'));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
 /** DOS time and date, as zip has them. */

@@ -38,7 +38,7 @@ export const PUT: RequestHandler = async (event) => {
   const name = event.request.headers.get('x-pad-name') ?? '';
   if (!/^[A-Za-z0-9_-]+$/.test(name) || name.length > MAX_SEALED_NAME)
     error(400, 'malformed pad name');
-  const data = await readCapped(event.request, MAX_SEALED);
+  const data = await readCapped(event.request, MAX_SEALED, 'pad is over 512 KiB');
   if (legacyPath === null) return json({ updatedAt: putSealed(root, id, name, data) });
   if (!migrateLegacy(root, id, name, data, legacyPath)) error(409, 'already encrypted');
   return new Response(null, { status: 204 });

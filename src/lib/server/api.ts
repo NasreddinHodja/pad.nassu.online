@@ -33,8 +33,8 @@ export async function body(request: Request) {
 }
 
 /** The body's bytes, refused past `cap` even if content-length is missing or lies. */
-export async function readCapped(request: Request, cap: number) {
-  const tooBig = () => error(413, 'pad is over 512 KiB');
+export async function readCapped(request: Request, cap: number, tooBigMessage: string) {
+  const tooBig = () => error(413, tooBigMessage);
   if (Number(request.headers.get('content-length') ?? 0) > cap) tooBig();
   if (!request.body) error(400, 'empty pad');
   const chunks: Uint8Array[] = [];

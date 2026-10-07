@@ -5,6 +5,7 @@ import {
   fromPassword,
   openName,
   openRootKey,
+  openShare,
   openShareKey,
   openSnapshot,
   openText,
@@ -13,6 +14,7 @@ import {
   random,
   sealName,
   sealRootKey,
+  sealShare,
   sealShareKey,
   sealSnapshot,
   sealText,
@@ -69,4 +71,13 @@ test("a link's copy opens with its key, for its id, and its key with the root's"
   await expect(openSnapshot(random(32), 'link', sealed)).rejects.toThrow();
   await expect(openSnapshot(key, 'other', sealed)).rejects.toThrow();
   expect(await openShareKey(keys, 'link', await sealShareKey(keys, 'link', key))).toEqual(key);
+});
+
+test("a link's pads open with its key, for its id, and never as a link from before", async () => {
+  const key = random(32);
+  const plain = new TextEncoder().encode('{"path":"a","pads":[]}');
+  const sealed = await sealShare(key, 'link', plain);
+  expect(await openShare(key, 'link', sealed)).toEqual(plain);
+  await expect(openShare(key, 'other', sealed)).rejects.toThrow();
+  await expect(openSnapshot(key, 'link', sealed)).rejects.toThrow();
 });

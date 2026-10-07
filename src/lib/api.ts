@@ -6,6 +6,7 @@ import {
   openName,
   openRootKey,
   openShareKey,
+  openShare,
   openSnapshot,
   openText,
   padId,
@@ -14,12 +15,20 @@ import {
   sealName,
   sealRootKey,
   sealShareKey,
-  sealSnapshot,
+  sealShare,
   sealText,
   toBase64,
-  type Keys,
-  type Snapshot
+  type Keys
 } from './crypto';
+import { deflate, inflate } from './deflate';
+import type { Pad } from './export';
+import { MAX_SHARE } from './limits';
+
+const utf8 = new TextEncoder();
+const utf8Decode = new TextDecoder();
+
+/** What a read-only link holds: the pad it was made at, and it and those under it. */
+export type Shared = { path: string; pads: Pad[] };
 
 const base = (root: string) => '/_/' + encodeURIComponent(root);
 
@@ -146,13 +155,19 @@ export type Share = { id: string; url: string; createdAt: number };
 const shareUrl = (root: string, id: string, key: Uint8Array) =>
   `${location.origin}${base(root)}/s/${id}#${toBase64(key)}`;
 
-/** A read-only link to a copy of the pad as it is now. */
-export async function share(root: string, keys: Keys, path: string, text: string) {
+/** A read-only link to a copy of the pad and those under it, as they are now. */
+export async function share(root: string, keys: Keys, path: string, pads: Pad[]) {
   const id = toBase64(random(16));
   const key = random(32);
+  const plain = await deflate(utf8.encode(JSON.stringify({ path, pads } satisfies Shared)));
+  const body = await sealShare(key, id, plain);
+  if (body.length > MAX_SHARE)
+    throw new Error(
+      `/${path} and its pads come to ${Math.ceil(body.length / 1024)} KiB compressed, over the ${MAX_SHARE / 1024} KiB a link holds`
+    );
   const res = await call(`${base(root)}/shares/${id}`, {
     method: 'PUT',
-    body: await sealSnapshot(key, id, { path, text }),
+    body,
     headers: {
       'content-type': 'application/octet-stream',
       'x-pad-id': await padId(keys, path),
@@ -187,10 +202,15 @@ export const revokeAll = async (root: string, keys: Keys, path: string) =>
 /** A link's copy, opened with the key from its `#`. */
 export async function readShare(root: string, id: string, key: string) {
   const res = await call(`${base(root)}/shares/${id}`);
-  const snapshot: Snapshot = await openSnapshot(
-    fromBase64(key),
-    id,
-    new Uint8Array(await res.arrayBuffer())
+  const data = new Uint8Array(await res.arrayBuffer());
+  const bytes = fromBase64(key);
+  const shared: Shared = await openShare(bytes, id, data).then(
+    async (plain) => JSON.parse(utf8Decode.decode(await inflate(plain))),
+    // A link from before subpads were shared: one pad.
+    async () => {
+      const one = await openSnapshot(bytes, id, data);
+      return { path: one.path, pads: [one] };
+    }
   );
-  return { ...snapshot, createdAt: Number(res.headers.get('x-created-at')) };
+  return { ...shared, createdAt: Number(res.headers.get('x-created-at')) };
 }

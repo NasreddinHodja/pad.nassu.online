@@ -3,10 +3,11 @@
   import { onMount, untrack } from 'svelte';
   import * as api from './api';
   import { forgetKeys, type Keys } from './crypto';
-  import { download, exportPads } from './export';
+  import { collect, download, exportPads } from './export';
   import Finder from './Finder.svelte';
   import Share from './Share.svelte';
   import { href } from './href';
+  import { under } from './tree';
 
   let { path, root, keys }: { path: string; root: string; keys: Keys } = $props();
 
@@ -75,18 +76,6 @@
     requestAnimationFrame(() => textarea.setSelectionRange(selectionStart, selectionEnd));
   }
 
-  /** Every pad under this one, relative to it, with the ones only a deeper pad implies. */
-  function under(paths: string[]) {
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- built and dropped here
-    const names = new Set<string>();
-    for (const p of paths) {
-      if (!p.startsWith(where.path + '/')) continue;
-      const parts = p.slice(where.path.length + 1).split('/');
-      for (let i = 1; i <= parts.length; i++) names.add(parts.slice(0, i).join('/'));
-    }
-    return [...names].sort();
-  }
-
   async function open() {
     try {
       const [text, paths] = await Promise.all([
@@ -94,7 +83,7 @@
         api.list(where.root, where.keys)
       ]);
       content = saved = text;
-      subpads = under(paths);
+      subpads = under(paths, where.path);
       status = 'saved';
       ready = true;
       requestAnimationFrame(() => {
@@ -218,7 +207,11 @@
     root={where.root}
     keys={where.keys}
     path={where.path}
-    text={() => content}
+    collect={async (progress) => {
+      await save();
+      if (content !== saved) throw new Error("the pad isn't saved yet, try again");
+      return collect(where.root, where.keys, where.path, progress);
+    }}
     onclose={() => {
       sharing = false;
       textarea.focus();
