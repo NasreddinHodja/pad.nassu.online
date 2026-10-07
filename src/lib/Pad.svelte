@@ -100,6 +100,14 @@
 		};
 	});
 
+	// Saves first: locking signs this browser out of the root.
+	async function lockRoot(e: SubmitEvent) {
+		e.preventDefault();
+		const form = e.currentTarget as HTMLFormElement;
+		await save();
+		if (content === saved) form.submit();
+	}
+
 	beforeNavigate(() => {
 		if (content !== saved) save();
 	});
@@ -128,6 +136,10 @@
 		<span class="ml-auto {status.startsWith('►') ? 'text-ink' : 'text-dim'}" aria-live="polite"
 			>{status}</span
 		>
+		<a class="text-ink hover:text-hi hover:underline" href="?password">password</a>
+		<form method="post" action="?/lock" onsubmit={lockRoot}>
+			<button class="cursor-pointer text-ink hover:text-hi hover:underline">lock</button>
+		</form>
 	</header>
 
 	<textarea

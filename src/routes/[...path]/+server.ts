@@ -1,4 +1,5 @@
 import { error, json, text } from '@sveltejs/kit';
+import { access, rootOf, sameOrigin } from '#lib/server/auth.ts';
 import { getPad, putPad } from '#lib/server/db.ts';
 import { checkRate, MAX_BYTES, normalizePath } from '#lib/server/limits.ts';
 import type { RequestHandler } from './$types';
@@ -9,10 +10,13 @@ function padPath(raw: string) {
 	return path;
 }
 
-// What the editor refetches, and `curl pad.nassu.online/foo`. Browsers asking
-// for HTML get the page instead.
-export const GET: RequestHandler = ({ params }) => {
-	const { content, updatedAt } = getPad(padPath(params.path));
+// What the editor refetches, and `curl pad.nassu.online/foo` while the root is
+// unclaimed. Browsers asking for HTML get the page instead.
+export const GET: RequestHandler = ({ params, cookies }) => {
+	const path = padPath(params.path);
+	const root = rootOf(path);
+	if (access(cookies, root) === 'locked') error(401, `/${root} is locked`);
+	const { content, updatedAt } = getPad(path);
 	return text(content, {
 		headers: {
 			'content-type': 'text/plain; charset=utf-8',
@@ -22,12 +26,17 @@ export const GET: RequestHandler = ({ params }) => {
 	});
 };
 
-// The editor's autosave, and `curl -T file -H 'content-type: application/octet-stream'`
-// pad.nassu.online/foo: SvelteKit's CSRF check turns away a PUT with no
-// content type or a form one (text/plain included) from another origin.
-export const PUT: RequestHandler = async ({ params, request, getClientAddress }) => {
+// The editor's autosave. Only the page's own requests get through: they carry
+// the unlock cookie, and the browser marks them same-origin.
+export const PUT: RequestHandler = async (event) => {
+	const { params, request, cookies, getClientAddress } = event;
 	const path = padPath(params.path);
 	checkRate(getClientAddress());
+	const root = rootOf(path);
+	const state = access(cookies, root);
+	if (state === 'open') error(403, `/${root} needs a password first: open it in a browser`);
+	if (state === 'locked') error(401, `/${root} is locked, reload to unlock it`);
+	if (!sameOrigin(event)) error(403, 'cross-site request refused');
 	if (Number(request.headers.get('content-length') ?? 0) > MAX_BYTES)
 		error(413, 'pad is over 512 KiB');
 	const content = await readCapped(request);

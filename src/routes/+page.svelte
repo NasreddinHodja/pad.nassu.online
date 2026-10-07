@@ -20,8 +20,8 @@
 		<div>
 			<h1 class="mb-2 text-xl underline">pad</h1>
 			<p class="text-dim">
-				any path is a pad: type, and it saves. no login, so anyone with the link can read and edit
-				it.
+				any path is a pad: type, and it saves. whoever starts /name sets its password, which then
+				guards /name and everything under it.
 			</p>
 		</div>
 		<form class="flex gap-2" onsubmit={open}>

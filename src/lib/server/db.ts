@@ -6,7 +6,7 @@ import { dirname } from 'node:path';
 const file = process.env.PAD_DB ?? 'data/pad.db';
 mkdirSync(dirname(file), { recursive: true });
 
-const db = new Database(file, { strict: true });
+export const db = new Database(file, { strict: true });
 db.run('PRAGMA journal_mode = WAL');
 db.run('PRAGMA synchronous = NORMAL');
 db.run(`CREATE TABLE IF NOT EXISTS pads (
