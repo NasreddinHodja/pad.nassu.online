@@ -9,6 +9,11 @@ cd "$(dirname "$0")"
 : "${DEST:?set DEST in deploy.env}"
 : "${PORT:?set PORT in deploy.env}"
 
+# What CI runs: nothing goes out that it would fail.
+bun run lint
+bun run check
+bun test
+
 # Building loads the server code, which opens a database: a throwaway one, not
 # the dev one.
 tmp=$(mktemp -d)

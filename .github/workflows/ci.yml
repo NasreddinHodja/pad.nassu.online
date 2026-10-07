@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun run lint
+
+      - run: bun run check
+
+      - run: bun test
+
+      # Building loads the server code, which opens a database.
+      - run: PAD_DB="$RUNNER_TEMP/pad.db" bun run build

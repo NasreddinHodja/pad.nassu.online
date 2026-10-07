@@ -2,7 +2,13 @@
 	"name": "pad.nassu.online",
 	"private": true,
 	"version": "0.0.1",
+	"description": "A notepad at every URL, each root locked by its own password and encrypted in the browser",
 	"type": "module",
+	"packageManager": "bun@1.4.2",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/NasreddinHodja/pad.nassu.online.git"
+	},
 	"scripts": {
 		"dev": "bun --bun vite dev",
 		"build": "bun --bun vite build",
@@ -11,6 +17,7 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check . && eslint .",
+		"test": "bun test",
 		"format": "prettier --write ."
 	},
 	"devDependencies": {
