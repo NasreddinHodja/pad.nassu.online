@@ -1,0 +1,50 @@
+<script lang="ts">
+	import { goto } from '$app/navigation';
+
+	let name = $state('');
+
+	function open(e: SubmitEvent) {
+		e.preventDefault();
+		const path = name.split('/').filter(Boolean).map(encodeURIComponent).join('/');
+		if (path) goto('/' + path);
+	}
+</script>
+
+<svelte:head>
+	<title>pad.nassu.online</title>
+	<meta name="description" content="a notepad at every url" />
+</svelte:head>
+
+<main class="flex min-h-svh flex-col items-center justify-center gap-6 px-3 py-12">
+	<div class="flex w-full max-w-xl flex-col gap-6 panel p-6">
+		<div>
+			<h1 class="mb-2 text-xl underline">pad</h1>
+			<p class="text-dim">
+				any path is a pad: type, and it saves. no login, so anyone with the link can read and edit
+				it.
+			</p>
+		</div>
+		<form class="flex gap-2" onsubmit={open}>
+			<label
+				class="flex flex-1 items-center border border-ink has-[input:focus-visible]:outline has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-hi has-[input:focus-visible]:outline-dotted"
+			>
+				<span class="pl-2 text-dim">/</span>
+				<input
+					class="h-8 min-w-0 flex-1 bg-bg px-1 text-fg outline-none placeholder:text-dim pointer-coarse:h-10"
+					bind:value={name}
+					{@attach (el) => el.focus()}
+					placeholder="my/notes"
+					aria-label="pad path"
+					autocapitalize="off"
+					autocomplete="off"
+					spellcheck="false"
+				/>
+			</label>
+			<button
+				class="hit relative h-8 cursor-pointer border border-ink bg-ink px-3 text-bg shadow-raised hover:bg-hi active:translate-x-0.5 active:translate-y-0.5 active:shadow-sunk pointer-coarse:h-10"
+			>
+				open
+			</button>
+		</form>
+	</div>
+</main>

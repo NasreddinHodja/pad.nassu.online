@@ -1,0 +1,107 @@
+@import 'tailwindcss';
+
+/* WebPlus IBM VGA 9x16 by VileR, https://int10h.org/oldschool-pc-fonts/,
+   CC BY-SA 4.0: static/fonts/WebPlus_IBM_VGA_9x16.LICENSE.txt */
+@font-face {
+	font-family: 'VGA';
+	font-style: normal;
+	font-weight: 400;
+	font-display: block;
+	src: url('/fonts/WebPlus_IBM_VGA_9x16.woff') format('woff');
+}
+
+/* On touch screens, a tap area of at least 48×48 centred on the control. The
+   control must be positioned for the area to sit on it. (konigslibrary) */
+@utility hit {
+	@media (pointer: coarse) {
+		&::after {
+			content: '';
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			width: max(100%, 48px);
+			height: max(100%, 48px);
+			transform: translate(-50%, -50%);
+		}
+	}
+}
+
+@theme {
+	/* konigslibrary's bubblegum palette, mixed as in its docs/design/system.org. */
+	--color-bg: #000000;
+	--color-fg: #ffe0f0;
+	--color-ink: #ff8fc8;
+	--color-hi: #ffbcde;
+	--color-dim: #ab96a1;
+	--color-ink2: #995678;
+	--color-ink3: #4d2b3c;
+	/* A bitmap font is only crisp at its own height or twice it. */
+	--font-sans: 'VGA', monospace;
+	--font-mono: 'VGA', monospace;
+	--text-xs: 16px;
+	--text-xs--line-height: 1.5;
+	--text-sm: 16px;
+	--text-sm--line-height: 1.5;
+	--text-base: 16px;
+	--text-base--line-height: 1.5;
+	--text-lg: 16px;
+	--text-lg--line-height: 1.5;
+	--text-xl: 32px;
+	--text-xl--line-height: 1.25;
+	--text-2xl: 32px;
+	--text-2xl--line-height: 1.25;
+	--shadow-raised: 2px 2px 0 var(--color-ink2), 4px 4px 0 var(--color-ink3);
+	--shadow-sunk: 2px 2px 0 var(--color-ink3);
+}
+
+/* What content sits in, over the texture: an ink frame, raised. */
+@utility panel {
+	border: 1px solid var(--color-ink);
+	background-color: var(--color-bg);
+	box-shadow: var(--shadow-raised);
+}
+
+/* A 50% checkerboard of the background, dithered over what's behind a
+   dialog. (konigslibrary) */
+@utility checker {
+	background-image: conic-gradient(
+		var(--color-bg) 25%,
+		transparent 0 50%,
+		var(--color-bg) 0 75%,
+		transparent 0
+	);
+	background-size: 2px 2px;
+}
+
+body {
+	@apply bg-bg text-fg;
+	font:
+		16px/1.5 'VGA',
+		monospace;
+	-webkit-font-smoothing: none;
+	font-synthesis: none;
+	overflow-x: clip;
+}
+
+/* Anthony Thyssen's marble.xbm in ink2 at 2x, as on nassu.online. */
+body::before {
+	content: '';
+	position: fixed;
+	inset: 0;
+	z-index: -1;
+	background-image: url('/bg.png');
+	image-rendering: pixelated;
+}
+
+::selection {
+	background: var(--color-ink);
+	color: var(--color-bg);
+}
+
+/* In base, so a utility (outline-none on an input inside a framed field) wins. */
+@layer base {
+	:focus-visible {
+		outline: 1px dotted var(--color-hi);
+		outline-offset: 2px;
+	}
+}
