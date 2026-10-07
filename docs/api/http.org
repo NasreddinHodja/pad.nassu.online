@@ -94,10 +94,10 @@ Body: ={"paths": ["a/b", …]}=, every one under =<root>=. =204=.
 
 /Unlocked, rate-limited./ Makes a link.
 
-+ Body: the copy, sealed under the link's key: at most the 512 KiB text, 1021 bytes of path and newline, and 28 of AES-GCM.
++ Body: the copy, deflated and sealed under the link's key, at most 1 MiB; over: =413=.
 + =X-Pad-Id=: the pad's id. =X-Share-Key=: the link's key sealed under the root's, 60 bytes.
 
-=200= ={"createdAt": <ms>}=. =409= if the root has 1000 links, or the id is taken.
+=200= ={"createdAt": <ms>}=. =409= if the root has 1000 links or 64 MiB of them, or the id is taken.
 
 ** GET /_/<root>/shares/<link>
 

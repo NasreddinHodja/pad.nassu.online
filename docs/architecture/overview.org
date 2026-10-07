@@ -11,7 +11,7 @@ SvelteKit on Bun (=@sveltejs/adapter-bun=), one SQLite file through =bun:sqlite=
 | =/<path>=                          | =src/routes/[...path]/=: the gate or the editor |
 | =/_/<root>/auth/<action>=          | claim, unlock, change password, lock     |
 | =/_/<root>/pads=, =/_/<root>/pads/<id>= | list, read, write, delete sealed pads |
-| =/_/<root>/s/<link>#<key>=         | a read-only link's page                  |
+| =/_/<root>/s/<link>/<path>#<key>=  | a read-only link's pages                 |
 | =/_/<root>/shares/<link>=, =/_/<root>/pads/<id>/shares= | make, read, revoke, list read-only links |
 
 =/<path>='s load (=+page.server.ts=) normalises the path (redirecting =a//b/= to =a/b=) and returns only the root's state: =open=, =locked= or =unlocked=, and its salt. The page then shows:

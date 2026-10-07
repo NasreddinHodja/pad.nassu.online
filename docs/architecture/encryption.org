@@ -45,12 +45,14 @@ Nothing is counted per root: anyone could run that up to keep everyone else out.
 
 * Read-only links
 
-A link is =/_/<root>/s/<id>#<key>=. The browser makes both: =id= 16 random bytes, =key= 32. It seals the pad's path and text, as =path\ntext=, under =key= with AES-GCM bound to =id=, and =key= under the root's content key, also bound to =id=. The server gets the two sealed blobs and the pad's id, never =key=: it's after the link's =#=, which browsers don't send.
+A link is =/_/<root>/s/<id>#<key>=, with the path of a pad under the one it was made at between them for the pages within it. The browser makes both: =id= 16 random bytes, =key= 32. It writes the pad and those under it as JSON, ={"path": …, "pads": [{"path": …, "text": …}]}=, deflates it, and seals it under =key= with AES-GCM bound to =id=; and seals =key= under the root's content key, also bound to =id=. The server gets the two sealed blobs and the pad's id, never =key=: it's after the link's =#=, which browsers don't send.
 
 + Anyone with the link fetches the copy, no cookie needed, and opens it with =key=. Without =key=, =id= gets them nothing they could read.
 + The root's owners list the pad's links, open each =key= with the root's content key, and so can show and copy the links again.
 + Revoking deletes the row. Someone who read the copy before still has what they read.
 + The copy is sealed under its own key, not the root's: a link opens that one copy, nothing else in the root.
++ Deflating first means the server learns the copy's compressed size rather than its size.
++ Links from before subpads were shared hold one pad, as =path\ntext=, sealed bound to =pad share= rather than =pad share tree=; the page opens those too.
 
 * What it doesn't protect against
 
