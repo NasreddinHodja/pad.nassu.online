@@ -34,7 +34,7 @@ export const PUT: RequestHandler = async (event) => {
 	ours(event);
 	const { root, id } = target(event);
 	const legacy = event.request.headers.get('x-pad-legacy');
-	const legacyPath = legacy === null ? null : decodeURIComponent(legacy);
+	const legacyPath = legacy === null ? null : decodeHeader(legacy);
 	if (legacyPath !== null && rootOf(legacyPath) !== root) error(400, 'not a pad of this root');
 	if (legacyPath === null) checkRate(event.getClientAddress());
 	const name = event.request.headers.get('x-pad-name') ?? '';
@@ -55,6 +55,14 @@ export const DELETE: RequestHandler = (event) => {
 	deleteSealed(root, id);
 	return new Response(null, { status: 204 });
 };
+
+function decodeHeader(value: string) {
+	try {
+		return decodeURIComponent(value);
+	} catch {
+		error(400, 'malformed pad path');
+	}
+}
 
 // A missing or lying content-length mustn't let a body past the cap.
 async function readCapped(request: Request) {
