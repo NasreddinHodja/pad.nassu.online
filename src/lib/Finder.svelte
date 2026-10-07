@@ -3,6 +3,7 @@
 	import { tick } from 'svelte';
 	import { rank } from './fuzzy';
 	import { href } from './href';
+	import { fadeOut, flyIn } from './motion';
 
 	// fzf over the pads under this one. Collapsed it's the field; focused, a
 	// panel opens upwards around it over a checker backdrop, best match nearest
@@ -71,7 +72,12 @@
 {/snippet}
 
 {#if open}
-	<button class="fixed inset-0 z-40 checker" aria-label="close" tabindex="-1" onclick={close}
+	<button
+		class="fixed inset-0 z-40 checker"
+		aria-label="close"
+		tabindex="-1"
+		onclick={close}
+		out:fadeOut
 	></button>
 {/if}
 
@@ -81,6 +87,8 @@
 		<div
 			class="absolute -inset-x-3 -bottom-3 flex flex-col gap-3 panel p-[11px]"
 			role="presentation"
+			in:flyIn
+			out:fadeOut
 			onmousedown={(e) => e.preventDefault()}
 		>
 			<div class="flex items-baseline gap-3 border-b border-ink pb-1">
