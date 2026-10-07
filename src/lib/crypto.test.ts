@@ -5,12 +5,16 @@ import {
   fromPassword,
   openName,
   openRootKey,
+  openShareKey,
+  openSnapshot,
   openText,
   padId,
   padKeys,
   random,
   sealName,
   sealRootKey,
+  sealShareKey,
+  sealSnapshot,
   sealText,
   toBase64
 } from './crypto.ts';
@@ -54,4 +58,15 @@ test('text and names open only under the id they were sealed for', async () => {
   const name = await sealName(keys, id, 'a/b');
   expect(await openName(keys, id, name)).toBe('a/b');
   await expect(openName(keys, other, name)).rejects.toThrow();
+});
+
+test("a link's copy opens with its key, for its id, and its key with the root's", async () => {
+  const keys = await padKeys(random(32));
+  const key = random(32);
+  const snapshot = { path: 'a/b', text: 'first line\nsecond line' };
+  const sealed = await sealSnapshot(key, 'link', snapshot);
+  expect(await openSnapshot(key, 'link', sealed)).toEqual(snapshot);
+  await expect(openSnapshot(random(32), 'link', sealed)).rejects.toThrow();
+  await expect(openSnapshot(key, 'other', sealed)).rejects.toThrow();
+  expect(await openShareKey(keys, 'link', await sealShareKey(keys, 'link', key))).toEqual(key);
 });

@@ -31,3 +31,30 @@ export async function body(request: Request) {
   if (!json || typeof json !== 'object') error(400, 'malformed body');
   return json as Record<string, unknown>;
 }
+
+/** The body's bytes, refused past `cap` even if content-length is missing or lies. */
+export async function readCapped(request: Request, cap: number) {
+  const tooBig = () => error(413, 'pad is over 512 KiB');
+  if (Number(request.headers.get('content-length') ?? 0) > cap) tooBig();
+  if (!request.body) error(400, 'empty pad');
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for await (const chunk of request.body) {
+    size += chunk.byteLength;
+    if (size > cap) tooBig();
+    chunks.push(chunk);
+  }
+  return new Uint8Array(Buffer.concat(chunks));
+}
+
+/** A pad's id is the base64url of its 32-byte HMAC. */
+export function padIdParam(raw: string) {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(raw)) error(400, 'not a valid pad id');
+  return raw;
+}
+
+/** A read-only link's id: 16 random bytes, base64url. */
+export function shareIdParam(raw: string) {
+  if (!/^[A-Za-z0-9_-]{22}$/.test(raw)) error(400, 'not a valid link');
+  return raw;
+}

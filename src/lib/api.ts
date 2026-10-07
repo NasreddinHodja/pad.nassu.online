@@ -5,15 +5,20 @@ import {
   fromPassword,
   openName,
   openRootKey,
+  openShareKey,
+  openSnapshot,
   openText,
   padId,
   padKeys,
   random,
   sealName,
   sealRootKey,
+  sealShareKey,
+  sealSnapshot,
   sealText,
   toBase64,
-  type Keys
+  type Keys,
+  type Snapshot
 } from './crypto';
 
 const base = (root: string) => '/_/' + encodeURIComponent(root);
@@ -123,4 +128,59 @@ export async function save(root: string, keys: Keys, path: string, text: string,
       ...(legacy !== undefined && { 'x-pad-legacy': encodeURIComponent(legacy) })
     }
   });
+}
+
+export type Share = { id: string; url: string; createdAt: number };
+
+/** The link's own page, with its key where the server never sees it. */
+const shareUrl = (root: string, id: string, key: Uint8Array) =>
+  `${location.origin}${base(root)}/s/${id}#${toBase64(key)}`;
+
+/** A read-only link to a copy of the pad as it is now. */
+export async function share(root: string, keys: Keys, path: string, text: string) {
+  const id = toBase64(random(16));
+  const key = random(32);
+  const res = await call(`${base(root)}/shares/${id}`, {
+    method: 'PUT',
+    body: await sealSnapshot(key, id, { path, text }),
+    headers: {
+      'content-type': 'application/octet-stream',
+      'x-pad-id': await padId(keys, path),
+      'x-share-key': toBase64(await sealShareKey(keys, id, key))
+    }
+  });
+  const { createdAt } = await res.json();
+  return { id, url: shareUrl(root, id, key), createdAt } satisfies Share;
+}
+
+/** The pad's links, oldest first. */
+export async function shares(root: string, keys: Keys, path: string) {
+  const res = await call(`${base(root)}/pads/${await padId(keys, path)}/shares`);
+  const { shares } = (await res.json()) as {
+    shares: { id: string; sealedKey: string; createdAt: number }[];
+  };
+  return Promise.all(
+    shares.map(async ({ id, sealedKey, createdAt }) => ({
+      id,
+      url: shareUrl(root, id, await openShareKey(keys, id, fromBase64(sealedKey))),
+      createdAt
+    }))
+  );
+}
+
+export const revoke = (root: string, id: string) =>
+  call(`${base(root)}/shares/${id}`, { method: 'DELETE' });
+
+export const revokeAll = async (root: string, keys: Keys, path: string) =>
+  call(`${base(root)}/pads/${await padId(keys, path)}/shares`, { method: 'DELETE' });
+
+/** A link's copy, opened with the key from its `#`. */
+export async function readShare(root: string, id: string, key: string) {
+  const res = await call(`${base(root)}/shares/${id}`);
+  const snapshot: Snapshot = await openSnapshot(
+    fromBase64(key),
+    id,
+    new Uint8Array(await res.arrayBuffer())
+  );
+  return { ...snapshot, createdAt: Number(res.headers.get('x-created-at')) };
 }

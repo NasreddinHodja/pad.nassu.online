@@ -8,6 +8,8 @@ export const MAX_SEALED_NAME = 1400;
 export const MAX_PATH = 255;
 export const MAX_SEGMENT = 64;
 export const MAX_DEPTH = 10;
+/** A read-only link's copy, sealed: the path, a newline and the text. */
+export const MAX_SNAPSHOT = MAX_PATH * 4 + 1 + MAX_SEALED;
 
 // Writes per IP per minute. Autosave fires once per pause in typing, so a
 // person never gets near this; a script filling the disk does.

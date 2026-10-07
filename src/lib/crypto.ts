@@ -146,6 +146,29 @@ export const sealName = async (keys: Keys, id: string, path: string) =>
 export const openName = async (keys: Keys, id: string, sealed: string) =>
   utf8Decode.decode(await open(keys.content, fromBase64(sealed), `pad name\n${id}`));
 
+// A read-only link: a copy of a pad sealed under a key of its own, which the
+// link carries after its `#`, so the server never gets it. The root keeps the
+// key too, sealed, for its owners to list the links again.
+export type Snapshot = { path: string; text: string };
+
+const shareKey = (key: Bytes, usage: KeyUsage) =>
+  crypto.subtle.importKey('raw', key, 'AES-GCM', false, [usage]);
+
+// The path, a newline (which no path has), then the text.
+export const sealSnapshot = async (key: Bytes, id: string, { path, text }: Snapshot) =>
+  seal(await shareKey(key, 'encrypt'), utf8.encode(`${path}\n${text}`), `pad share\n${id}`);
+export async function openSnapshot(key: Bytes, id: string, data: Bytes): Promise<Snapshot> {
+  const plain = utf8Decode.decode(
+    await open(await shareKey(key, 'decrypt'), data, `pad share\n${id}`)
+  );
+  const cut = plain.indexOf('\n');
+  return { path: plain.slice(0, cut), text: plain.slice(cut + 1) };
+}
+export const sealShareKey = (keys: Keys, id: string, key: Bytes) =>
+  seal(keys.content, key, `pad share key\n${id}`);
+export const openShareKey = (keys: Keys, id: string, sealed: Bytes) =>
+  open(keys.content, sealed, `pad share key\n${id}`);
+
 // The keys stay in this browser between visits, in IndexedDB, as keys it
 // can use but not export: a script on the page could decrypt with them while
 // it runs, but can't carry them off.

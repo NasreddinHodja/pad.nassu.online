@@ -1,16 +1,14 @@
 import { error, json } from '@sveltejs/kit';
-import { ours, rootParam, unlocked } from '#lib/server/api.ts';
+import { ours, padIdParam, readCapped, rootParam, unlocked } from '#lib/server/api.ts';
 import { rootOf } from '#lib/server/auth.ts';
 import { deleteSealed, getSealed, migrateLegacy, putSealed } from '#lib/server/db.ts';
 import { checkRate, MAX_SEALED, MAX_SEALED_NAME } from '#lib/server/limits.ts';
 import type { RequestEvent, RequestHandler } from './$types';
 
-/** A pad's id is the base64url of its 32-byte HMAC. */
 function target(event: RequestEvent) {
   const root = rootParam(event.params.root);
   unlocked(event, root);
-  if (!/^[A-Za-z0-9_-]{43}$/.test(event.params.id)) error(400, 'not a valid pad id');
-  return { root, id: event.params.id };
+  return { root, id: padIdParam(event.params.id) };
 }
 
 export const GET: RequestHandler = (event) => {
@@ -40,9 +38,7 @@ export const PUT: RequestHandler = async (event) => {
   const name = event.request.headers.get('x-pad-name') ?? '';
   if (!/^[A-Za-z0-9_-]+$/.test(name) || name.length > MAX_SEALED_NAME)
     error(400, 'malformed pad name');
-  if (Number(event.request.headers.get('content-length') ?? 0) > MAX_SEALED)
-    error(413, 'pad is over 512 KiB');
-  const data = await readCapped(event.request);
+  const data = await readCapped(event.request, MAX_SEALED);
   if (legacyPath === null) return json({ updatedAt: putSealed(root, id, name, data) });
   if (!migrateLegacy(root, id, name, data, legacyPath)) error(409, 'already encrypted');
   return new Response(null, { status: 204 });
@@ -62,17 +58,4 @@ function decodeHeader(value: string) {
   } catch {
     error(400, 'malformed pad path');
   }
-}
-
-// A missing or lying content-length mustn't let a body past the cap.
-async function readCapped(request: Request) {
-  if (!request.body) error(400, 'empty pad');
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for await (const chunk of request.body) {
-    size += chunk.byteLength;
-    if (size > MAX_SEALED) error(413, 'pad is over 512 KiB');
-    chunks.push(chunk);
-  }
-  return new Uint8Array(Buffer.concat(chunks));
 }

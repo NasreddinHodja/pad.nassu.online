@@ -4,6 +4,7 @@
   import * as api from './api';
   import { forgetKeys, type Keys } from './crypto';
   import Finder from './Finder.svelte';
+  import Share from './Share.svelte';
   import { href } from './href';
 
   let { path, root, keys }: { path: string; root: string; keys: Keys } = $props();
@@ -22,6 +23,7 @@
   let status = $state('opening…');
   let subpads = $state<string[]>([]);
   let ready = $state(false);
+  let sharing = $state(false);
   let textarea: HTMLTextAreaElement;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let saving = false;
@@ -157,6 +159,11 @@
       class="ml-auto min-w-[8ch] text-right {status.startsWith('►') ? 'text-ink' : 'text-dim'}"
       aria-live="polite">{status}</span
     >
+    <button
+      class="hit relative cursor-pointer text-ink hover:text-hi hover:underline disabled:cursor-default disabled:opacity-40"
+      disabled={!ready}
+      onclick={() => (sharing = true)}>share</button
+    >
     <a class="hit relative text-ink hover:text-hi hover:underline" href="?password">password</a>
     <button
       class="hit relative cursor-pointer text-ink hover:text-hi hover:underline"
@@ -178,3 +185,16 @@
 
   <Finder base={path} items={subpads} onclose={() => textarea.focus()} />
 </div>
+
+{#if sharing}
+  <Share
+    root={where.root}
+    keys={where.keys}
+    path={where.path}
+    text={() => content}
+    onclose={() => {
+      sharing = false;
+      textarea.focus();
+    }}
+  />
+{/if}
