@@ -15,16 +15,16 @@
 	<meta name="description" content="a notepad at every url" />
 </svelte:head>
 
-<main class="flex min-h-svh flex-col items-center justify-center gap-6 px-3 py-12">
-	<div class="flex w-full max-w-xl flex-col gap-6 panel p-6">
-		<div>
-			<h1 class="mb-2 text-xl underline">pad</h1>
+<main class="flex min-h-dvh flex-col items-center justify-center px-3 py-8">
+	<div class="flex w-full max-w-xl flex-col gap-3 panel p-3 sm:p-6">
+		<div class="flex flex-col gap-3">
+			<h1 class="border-b border-ink text-xl">pad</h1>
 			<p class="text-dim">
 				any path is a pad: type, and it saves. whoever starts /name sets its password, which then
 				guards /name and everything under it.
 			</p>
 		</div>
-		<form class="flex gap-2" onsubmit={open}>
+		<form class="flex gap-3" onsubmit={open}>
 			<label
 				class="flex flex-1 items-center border border-ink has-[input:focus-visible]:outline has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-hi has-[input:focus-visible]:outline-dotted"
 			>
@@ -41,7 +41,7 @@
 				/>
 			</label>
 			<button
-				class="hit relative h-8 cursor-pointer border border-ink bg-ink px-3 text-bg shadow-raised hover:bg-hi active:translate-x-0.5 active:translate-y-0.5 active:shadow-sunk pointer-coarse:h-10"
+				class="hit relative h-8 cursor-pointer border border-ink bg-ink px-3 text-bg shadow-raised active:translate-x-0.5 active:translate-y-0.5 active:shadow-sunk enabled:hover:bg-hi pointer-coarse:h-10"
 			>
 				open
 			</button>

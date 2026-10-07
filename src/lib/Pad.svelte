@@ -139,15 +139,17 @@
 	<title>{path} · pad</title>
 </svelte:head>
 
-<div class="mx-auto flex h-svh max-w-6xl flex-col gap-3 p-3 sm:p-6">
-	<header class="flex flex-wrap items-center gap-x-4 panel px-3 py-1">
+<div class="mx-auto flex h-dvh max-w-6xl flex-col gap-3 p-3 sm:p-6">
+	<header
+		class="flex flex-wrap items-center gap-x-4 panel px-3 py-1 pointer-coarse:gap-y-2 pointer-coarse:py-2"
+	>
 		<nav class="flex min-w-0 flex-wrap" aria-label="path">
-			<a class="text-ink hover:text-hi hover:underline" href="/">pad</a>
+			<a class="hit relative text-ink hover:text-hi hover:underline" href="/">pad</a>
 			{#each segments as segment, i (i)}
 				<span class="px-1 text-dim">/</span>
 				{#if i < segments.length - 1}
 					<a
-						class="break-all text-ink hover:text-hi hover:underline"
+						class="hit relative break-all text-ink hover:text-hi hover:underline"
 						href={href(segments.slice(0, i + 1))}>{segment}</a
 					>
 				{:else}
@@ -155,12 +157,14 @@
 				{/if}
 			{/each}
 		</nav>
-		<span class="ml-auto {status.startsWith('►') ? 'text-ink' : 'text-dim'}" aria-live="polite"
-			>{status}</span
+		<span
+			class="ml-auto min-w-[8ch] text-right {status.startsWith('►') ? 'text-ink' : 'text-dim'}"
+			aria-live="polite">{status}</span
 		>
-		<a class="text-ink hover:text-hi hover:underline" href="?password">password</a>
-		<button class="cursor-pointer text-ink hover:text-hi hover:underline" onclick={lock}
-			>lock</button
+		<a class="hit relative text-ink hover:text-hi hover:underline" href="?password">password</a>
+		<button
+			class="hit relative cursor-pointer text-ink hover:text-hi hover:underline"
+			onclick={lock}>lock</button
 		>
 	</header>
 

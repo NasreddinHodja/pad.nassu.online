@@ -72,12 +72,12 @@
 	</label>
 {/snippet}
 
-<main class="flex min-h-svh flex-col items-center justify-center gap-6 px-3 py-12">
-	<form class="flex w-full max-w-xl flex-col gap-4 panel p-6" {onsubmit}>
+<main class="flex min-h-dvh flex-col items-center justify-center px-3 py-8">
+	<form class="flex w-full max-w-xl flex-col gap-3 panel p-3 sm:p-6" {onsubmit}>
 		<!-- For password managers: what the password is for. -->
 		<input type="text" autocomplete="username" value="/{root}" hidden readonly />
 		{#if mode === 'claim'}
-			<h1 class="text-xl break-all underline">/{root} is free</h1>
+			<h1 class="border-b border-ink text-xl break-all">/{root} is free</h1>
 			<p class="text-dim">
 				set its password. it locks /{root} and every pad under it, for reading too. the pads are encrypted
 				with it in your browser: the server never sees it, so if you lose it, the pads are gone.
@@ -95,7 +95,7 @@
 				(v) => (confirm = v)
 			)}
 		{:else if mode === 'unlock'}
-			<h1 class="text-xl break-all underline">/{root} is locked</h1>
+			<h1 class="border-b border-ink text-xl break-all">/{root} is locked</h1>
 			{@render field(
 				'password',
 				'current-password',
@@ -103,7 +103,7 @@
 				(v) => (current = v)
 			)}
 		{:else}
-			<h1 class="text-xl break-all underline">/{root}'s password</h1>
+			<h1 class="border-b border-ink text-xl break-all">/{root}'s password</h1>
 			<p class="text-dim">changing it signs every other browser out of /{root}.</p>
 			{@render field(
 				'current password',
@@ -127,9 +127,9 @@
 		{#if problem}
 			<p class="text-ink" role="alert">► {problem}</p>
 		{/if}
-		<div class="flex items-center gap-4">
+		<div class="flex items-center gap-3">
 			<button
-				class="hit relative h-8 cursor-pointer border border-ink bg-ink px-3 text-bg shadow-raised hover:bg-hi active:translate-x-0.5 active:translate-y-0.5 active:shadow-sunk disabled:cursor-wait pointer-coarse:h-10"
+				class="hit relative h-8 cursor-pointer border border-ink bg-ink px-3 text-bg shadow-raised enabled:hover:bg-hi enabled:active:translate-x-0.5 enabled:active:translate-y-0.5 enabled:active:shadow-sunk disabled:cursor-wait pointer-coarse:h-10"
 				disabled={busy}
 			>
 				{busy
@@ -141,9 +141,11 @@
 							: 'change'}
 			</button>
 			{#if mode === 'password'}
-				<a class="text-ink hover:text-hi hover:underline" href={href(path.split('/'))}>cancel</a>
+				<a class="hit relative text-ink hover:text-hi hover:underline" href={href(path.split('/'))}
+					>cancel</a
+				>
 			{:else}
-				<a class="text-ink hover:text-hi hover:underline" href="/">another pad</a>
+				<a class="hit relative text-ink hover:text-hi hover:underline" href="/">another pad</a>
 			{/if}
 		</div>
 	</form>

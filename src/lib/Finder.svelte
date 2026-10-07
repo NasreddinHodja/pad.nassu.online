@@ -102,7 +102,7 @@
 					id="finder-list"
 					role="listbox"
 					aria-label="pads under {base}"
-					class="flex max-h-[60svh] flex-col-reverse overflow-y-auto"
+					class="flex max-h-[60dvh] flex-col-reverse overflow-y-auto"
 				>
 					{#each shown as m, i (m.item)}
 						<!-- The keyboard drives the list from the field (aria-activedescendant);
@@ -112,7 +112,7 @@
 							id="finder-{i}"
 							role="option"
 							aria-selected={i === selected}
-							class="cursor-pointer border border-ink px-2 py-1 break-all {i > 0
+							class="cursor-pointer border border-ink px-2 py-1 break-all pointer-coarse:py-2 {i > 0
 								? '-mb-px'
 								: ''} {i === selected ? 'bg-ink text-bg' : 'text-ink hover:bg-ink3 hover:text-hi'}"
 							onclick={() => go(m.item)}
