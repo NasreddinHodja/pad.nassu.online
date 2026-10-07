@@ -15,6 +15,11 @@
 // Unlocking gives the browser one opaque token in an HttpOnly cookie; the
 // database keeps only its SHA-256, per root it unlocks, so a copy of the file
 // opens nothing.
+//
+// Wrong passwords back off, but only ever on the one who sent them: a browser
+// that has unlocked the root before on its own failures, by a device token
+// that outlives locking (konigslibrary's), any other on its address's. There
+// is no count per root, which anyone could run up to keep everyone else out.
 
 import { dev } from '$app/env';
 import type { Cookies, RequestEvent } from '@sveltejs/kit';
@@ -35,6 +40,9 @@ const TOUCH_EVERY = 60 * 60 * 1000;
 
 // __Host-: only this host, over https, on every path. Dev runs on plain http.
 const COOKIE = dev ? 'pad' : '__Host-pad';
+const DEVICE_COOKIE = dev ? 'pad-device' : '__Host-pad-device';
+/** A device not seen at a root this long is a stranger there again. */
+const DEVICE_IDLE = 180 * DAY;
 
 db.run(`CREATE TABLE IF NOT EXISTS roots (
 	name TEXT PRIMARY KEY,
@@ -51,6 +59,12 @@ db.run(`CREATE TABLE IF NOT EXISTS unlocks (
 	PRIMARY KEY (token_hash, root)
 ) WITHOUT ROWID`);
 db.run('CREATE INDEX IF NOT EXISTS unlocks_by_root ON unlocks (root)');
+db.run(`CREATE TABLE IF NOT EXISTS devices (
+	token_hash BLOB NOT NULL,
+	root TEXT NOT NULL,
+	last_seen INTEGER NOT NULL,
+	PRIMARY KEY (token_hash, root)
+) WITHOUT ROWID`);
 
 type Root = { salt: Uint8Array; auth_hash: Uint8Array; sealed_key: Uint8Array };
 const rootStmt = db.query<Root, [string]>(
@@ -77,6 +91,13 @@ const revokeOthersStmt = db.query('DELETE FROM unlocks WHERE root = ? AND token_
 const expireStmt = db.query(
 	`DELETE FROM unlocks WHERE last_seen <= ?1 - ${IDLE} OR created_at <= ?1 - ${ABSOLUTE}`
 );
+const deviceStmt = db.query<{ last_seen: number }, [Uint8Array, string, number]>(
+	`SELECT last_seen FROM devices WHERE token_hash = ?1 AND root = ?2 AND last_seen > ?3 - ${DEVICE_IDLE}`
+);
+const rememberStmt = db.query(
+	'INSERT OR REPLACE INTO devices (token_hash, root, last_seen) VALUES (?, ?, ?)'
+);
+const expireDevicesStmt = db.query(`DELETE FROM devices WHERE last_seen <= ? - ${DEVICE_IDLE}`);
 
 export const rootOf = (path: string) => path.split('/')[0];
 
@@ -148,6 +169,55 @@ export function unlock(cookies: Cookies, root: string) {
 	});
 }
 
+/** Whose failures a password attempt counts against: the device's own, if it's been here. */
+export function attemptKeys(cookies: Cookies, root: string, address: string) {
+	const token = cookies.get(DEVICE_COOKIE);
+	if (token) {
+		const hash = tokenHash(token);
+		if (deviceStmt.get(hash, root, Date.now())) return ['device:' + hash.toString('base64url')];
+	}
+	return ['ip:' + limitKey(address)];
+}
+
+/**
+ * The address, or for IPv6 its /64, which one host can have all of; an
+ * IPv4-mapped one as the IPv4 address. (konigslibrary's `limit_key`.)
+ */
+export function limitKey(address: string) {
+	const ip = address.replace(/%.*$/, '');
+	const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
+	if (mapped) return mapped[1];
+	if (!ip.includes(':')) return ip;
+	const [head, tail] = ip.split('::');
+	const groups = (part?: string) => (part ? part.split(':') : []);
+	// A trailing IPv4 part fills two groups.
+	const count = (part: string[]) => part.length + (part.at(-1)?.includes('.') ? 1 : 0);
+	const h = groups(head);
+	const t = groups(tail);
+	const all = tail === undefined ? h : [...h, ...Array(8 - count(h) - count(t)).fill('0'), ...t];
+	return (
+		all
+			.slice(0, 4)
+			.map((g) => parseInt(g, 16).toString(16))
+			.join(':') + '::/64'
+	);
+}
+
+/** Marks this browser as one that has unlocked `root`. */
+export function rememberDevice(cookies: Cookies, root: string) {
+	const now = Date.now();
+	expireDevicesStmt.run(now);
+	const token = cookies.get(DEVICE_COOKIE) ?? randomBytes(32).toString('base64url');
+	rememberStmt.run(tokenHash(token), root, now);
+	cookies.set(DEVICE_COOKIE, token, {
+		path: '/',
+		httpOnly: true,
+		secure: !dev,
+		sameSite: 'lax',
+		maxAge: DEVICE_IDLE / 1000
+	});
+}
+
 /** Forgets `root` on this browser. */
 export function lock(cookies: Cookies, root: string) {
 	const token = cookies.get(COOKIE);
@@ -166,7 +236,7 @@ export function sameOrigin({ request, url }: RequestEvent) {
 	return request.headers.get('origin') === url.origin;
 }
 
-// Failed unlocks back off, per address and per root, as konigslibrary's do: a
+// Failed unlocks back off, per device or per address, as konigslibrary's do: a
 // few free, then a wait that doubles up to 15 minutes. In memory: a restart
 // forgets the counts, which costs an attacker a restart they can't cause.
 const FREE = 5;
