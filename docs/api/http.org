@@ -51,7 +51,7 @@ Ends this browser's unlock of the root. =204=, unlocked or not.
 
 /Unlocked./ Every pad of the root, and its pads from before encryption.
 
-=200= ={"pads": [{"id": "…", "name": "<sealed path>"}], "legacy": [{"path": "a/b", "content": "…"}]}=. At most 5000 pads.
+=200= ={"pads": [{"id": "…", "name": "<sealed path>", "size": <bytes of sealed text>}], "legacy": [{"path": "a/b", "content": "…"}]}=. At most 5000 pads.
 
 ** DELETE /_/<root>/pads
 

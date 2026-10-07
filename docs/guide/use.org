@@ -28,6 +28,10 @@ A pad holds 512 KiB. Saves are capped at 60 a minute per address.
 
 The link's page shows the pad's path, linking to the pad itself for those with the password. A root holds 1000 links at most.
 
+* Export
+
+*export*, in a pad's header, saves the pad and every pad under it as a zip of org files: exporting =/notes= gives =notes.org=, =notes/today.org=, =notes/today/later.org=. Pads that only have pads under them are just folders. The zip is made in the browser, so the server still never sees the text. An export takes up to 64 MiB of pads; past that it says how much there is instead.
+
 * Finder
 
 The field under the pad finds and makes pads under it.
