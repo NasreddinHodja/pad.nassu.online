@@ -11,12 +11,14 @@ SvelteKit on Bun (=@sveltejs/adapter-bun=), one SQLite file through =bun:sqlite=
 | =/<path>=                          | =src/routes/[...path]/=: the gate or the editor |
 | =/_/<root>/auth/<action>=          | claim, unlock, change password, lock     |
 | =/_/<root>/pads=, =/_/<root>/pads/<id>= | list, read, write, delete sealed pads |
+| =/_/<root>/s/<link>#<key>=         | a read-only link's page                  |
+| =/_/<root>/shares/<link>=, =/_/<root>/pads/<id>/shares= | make, read, revoke, list read-only links |
 
 =/<path>='s load (=+page.server.ts=) normalises the path (redirecting =a//b/= to =a/b=) and returns only the root's state: =open=, =locked= or =unlocked=, and its salt. The page then shows:
 
 + =Gate.svelte= to claim or unlock the root, when the server or the browser lacks what it needs: an unlock cookie on one side, the keys in IndexedDB on the other;
 + =Gate.svelte= in =password= mode, for =?password=;
-+ =Pad.svelte= otherwise, with =Finder.svelte= under it.
++ =Pad.svelte= otherwise, with =Finder.svelte= under it, and =Share.svelte= when its header's *share* is pressed.
 
 * The editor
 
@@ -24,12 +26,13 @@ SvelteKit on Bun (=@sveltejs/adapter-bun=), one SQLite file through =bun:sqlite=
 
 * Database
 
-=src/lib/server/db.ts= and =src/lib/server/auth.ts=. =PAD_DB= names the file (=data/pad.db= in dev). WAL mode.
+=src/lib/server/db.ts=, =auth.ts= and =shares.ts=. =PAD_DB= names the file (=data/pad.db= in dev). WAL mode.
 
 + =sealed= :: one row per pad: its root, =id= (the HMAC of its path), =name= (its path, encrypted), =data= (its text, encrypted), =updated_at=.
 + =roots= :: one row per claimed root: salt, SHA-256 of =auth=, the encrypted root key.
 + =unlocks= :: one row per browser per root it unlocked: SHA-256 of the cookie's token, when it was made, when it was last used.
 + =devices= :: one row per browser per root it has ever unlocked: SHA-256 of the device cookie's token, when it was last seen there. Kept through locking; gone after 180 days unseen.
++ =shares= :: one row per read-only link: its random =id=, root, =pad= (the pad's id), =sealed_key= (the link's key, encrypted under the root's), =data= (the copy, encrypted under the link's key), =created_at=.
 + =pads= :: pads from before encryption, in plain text. The first browser to unlock their root encrypts them into =sealed= and deletes them here.
 
 Rate limits and wrong-password counts are in memory (=limits.ts=, =auth.ts=): a restart clears them.

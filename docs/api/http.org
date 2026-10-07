@@ -79,3 +79,34 @@ Body: ={"paths": ["a/b", …]}=, every one under =<root>=. =204=.
 ** DELETE /_/<root>/pads/<id>
 
 /Unlocked, rate-limited./ What saving an empty pad does. =204=.
+
+* Read-only links
+
+=src/routes/_/[root]/shares/[share]/+server.ts=, =src/routes/_/[root]/pads/[id]/shares/+server.ts=. =<link>= is 22 base64url characters, 16 bytes the browser picks.
+
+** GET /_/<root>/pads/<id>/shares
+
+/Unlocked./ The pad's links, oldest first.
+
+=200= ={"shares": [{"id": "<link>", "sealedKey": 60 bytes, "createdAt": <ms>}]}=.
+
+** PUT /_/<root>/shares/<link>
+
+/Unlocked, rate-limited./ Makes a link.
+
++ Body: the copy, sealed under the link's key: at most the 512 KiB text, 1021 bytes of path and newline, and 28 of AES-GCM.
++ =X-Pad-Id=: the pad's id. =X-Share-Key=: the link's key sealed under the root's, 60 bytes.
+
+=200= ={"createdAt": <ms>}=. =409= if the root has 1000 links, or the id is taken.
+
+** GET /_/<root>/shares/<link>
+
+Needs nothing: anyone with the link may. =200=, =application/octet-stream=: the sealed copy, with =X-Created-At= in Unix milliseconds. =404= if it was revoked or never made.
+
+** DELETE /_/<root>/pads/<id>/shares
+
+/Unlocked./ Revokes every link to the pad. =204=.
+
+** DELETE /_/<root>/shares/<link>
+
+/Unlocked./ Revokes the link. =204=, whether it existed or not.

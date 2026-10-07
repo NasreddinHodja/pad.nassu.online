@@ -43,6 +43,15 @@ Nothing is counted per root: anyone could run that up to keep everyone else out.
 
 =SameSite= keeps other sites' requests from carrying the cookie, but other =nassu.online= subdomains are the same site. So every request that changes something must have =Sec-Fetch-Site: same-origin=, or, from a browser too old to send it, an =Origin= matching the page's.
 
+* Read-only links
+
+A link is =/_/<root>/s/<id>#<key>=. The browser makes both: =id= 16 random bytes, =key= 32. It seals the pad's path and text, as =path\ntext=, under =key= with AES-GCM bound to =id=, and =key= under the root's content key, also bound to =id=. The server gets the two sealed blobs and the pad's id, never =key=: it's after the link's =#=, which browsers don't send.
+
++ Anyone with the link fetches the copy, no cookie needed, and opens it with =key=. Without =key=, =id= gets them nothing they could read.
++ The root's owners list the pad's links, open each =key= with the root's content key, and so can show and copy the links again.
++ Revoking deletes the row. Someone who read the copy before still has what they read.
++ The copy is sealed under its own key, not the root's: a link opens that one copy, nothing else in the root.
+
 * What it doesn't protect against
 
 + A lost password can't be reset: nothing on the server can open the pads.

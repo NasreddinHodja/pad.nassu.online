@@ -22,6 +22,12 @@ A pad saves itself 600ms after you stop typing, when it loses focus, and when th
 
 A pad holds 512 KiB. Saves are capped at 60 a minute per address.
 
+* Read-only links
+
+*share*, in a pad's header, lists the pad's read-only links. *new link* makes one and copies it: a copy of the pad as it is right then, which anyone with the link can read but not change. Later edits don't reach it; make a new link to share them. *revoke* deletes the copy, and the link stops working; *revoke all*, pressed twice, does it for every link to the pad.
+
+The link's page shows the pad's path, linking to the pad itself for those with the password. A root holds 1000 links at most.
+
 * Finder
 
 The field under the pad finds and makes pads under it.
