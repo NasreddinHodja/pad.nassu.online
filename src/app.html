@@ -7,6 +7,19 @@
       content="width=device-width, initial-scale=1, interactive-widget=resizes-visual"
     />
     <meta name="text-scale" content="scale" />
+    <!-- The root's theme as this browser last saw it (lib/theme.ts), before the first paint. -->
+    <script nonce="%sveltekit.nonce%">
+      try {
+        const root = decodeURIComponent(location.pathname.split('/').filter(Boolean)[0] || '');
+        const saved = root && root !== '_' && localStorage.getItem('pad-theme:' + root);
+        if (saved) {
+          const style = document.documentElement.style;
+          for (const [name, value] of Object.entries(JSON.parse(saved).vars))
+            style.setProperty(name, value);
+          style.setProperty('--texture', 'none');
+        }
+      } catch {}
+    </script>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">

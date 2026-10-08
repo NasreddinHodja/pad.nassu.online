@@ -2,6 +2,7 @@
   import { page } from '$app/state';
   import * as api from '#lib/api.ts';
   import { href } from '#lib/href.ts';
+  import { applyTheme, DEFAULT } from '#lib/theme.ts';
   import { under } from '#lib/tree.ts';
 
   // A read-only link's copy: the pad it was made at and those under it, all
@@ -54,6 +55,12 @@
   });
 
   const relParts = $derived(rel ? rel.split('/') : []);
+
+  // The root's theme as it was when the link was made.
+  $effect(() => {
+    applyTheme(shared?.theme ?? DEFAULT);
+    return () => applyTheme(DEFAULT);
+  });
 </script>
 
 <svelte:head>

@@ -9,6 +9,7 @@ import {
   openShareKey,
   openSnapshot,
   openText,
+  openTheme,
   padId,
   padKeys,
   random,
@@ -18,6 +19,7 @@ import {
   sealShareKey,
   sealSnapshot,
   sealText,
+  sealTheme,
   toBase64
 } from './crypto.ts';
 
@@ -80,4 +82,13 @@ test("a link's pads open with its key, for its id, and never as a link from befo
   expect(await openShare(key, 'link', sealed)).toEqual(plain);
   await expect(openShare(key, 'other', sealed)).rejects.toThrow();
   await expect(openSnapshot(key, 'link', sealed)).rejects.toThrow();
+});
+
+test("a theme opens only with its root's keys, and isn't a pad's text", async () => {
+  const keys = await padKeys(random(32));
+  const sealed = await sealTheme(keys, '{"bg":"#000000"}');
+  expect(await openTheme(keys, sealed)).toBe('{"bg":"#000000"}');
+  await expect(openTheme(await padKeys(random(32)), sealed)).rejects.toThrow();
+  const id = await padId(keys, 'a');
+  await expect(openText(keys, id, sealed)).rejects.toThrow();
 });

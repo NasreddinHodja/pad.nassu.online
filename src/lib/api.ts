@@ -9,6 +9,7 @@ import {
   openShare,
   openSnapshot,
   openText,
+  openTheme,
   padId,
   padKeys,
   random,
@@ -17,18 +18,23 @@ import {
   sealShareKey,
   sealShare,
   sealText,
+  sealTheme,
   toBase64,
   type Keys
 } from './crypto';
 import { deflate, inflate } from './deflate';
 import type { Pad } from './export';
 import { MAX_SHARE } from './limits';
+import { parseTheme, type Theme } from './theme';
 
 const utf8 = new TextEncoder();
 const utf8Decode = new TextDecoder();
 
-/** What a read-only link holds: the pad it was made at, and it and those under it. */
-export type Shared = { path: string; pads: Pad[] };
+/**
+ * What a read-only link holds: the pad it was made at, and it and those under
+ * it; and the root's theme, which links from before themes don't have.
+ */
+export type Shared = { path: string; pads: Pad[]; theme?: Theme };
 
 const base = (root: string) => '/_/' + encodeURIComponent(root);
 
@@ -152,6 +158,21 @@ export async function save(root: string, keys: Keys, path: string, text: string,
   });
 }
 
+/** The root's theme; null if it's never been picked. */
+export async function theme(root: string, keys: Keys) {
+  const res = await call(`${base(root)}/theme`);
+  if (res.status === 204) return null;
+  return parseTheme(JSON.parse(await openTheme(keys, new Uint8Array(await res.arrayBuffer()))));
+}
+
+export async function setTheme(root: string, keys: Keys, { bg, fg, ink }: Theme) {
+  await call(`${base(root)}/theme`, {
+    method: 'PUT',
+    body: await sealTheme(keys, JSON.stringify({ bg, fg, ink })),
+    headers: { 'content-type': 'application/octet-stream' }
+  });
+}
+
 export type Share = { id: string; url: string; createdAt: number };
 
 /** The link's own page, with its key where the server never sees it. */
@@ -159,10 +180,10 @@ const shareUrl = (root: string, id: string, key: Uint8Array) =>
   `${location.origin}${base(root)}/s/${id}#${toBase64(key)}`;
 
 /** A read-only link to a copy of the pad and those under it, as they are now. */
-export async function share(root: string, keys: Keys, path: string, pads: Pad[]) {
+export async function share(root: string, keys: Keys, path: string, pads: Pad[], theme: Theme) {
   const id = toBase64(random(16));
   const key = random(32);
-  const plain = await deflate(utf8.encode(JSON.stringify({ path, pads } satisfies Shared)));
+  const plain = await deflate(utf8.encode(JSON.stringify({ path, pads, theme } satisfies Shared)));
   const body = await sealShare(key, id, plain);
   if (body.length > MAX_SHARE)
     throw new Error(
@@ -215,5 +236,9 @@ export async function readShare(root: string, id: string, key: string) {
       return { path: one.path, pads: [one] };
     }
   );
-  return { ...shared, createdAt: Number(res.headers.get('x-created-at')) };
+  return {
+    ...shared,
+    theme: shared.theme && parseTheme(shared.theme),
+    createdAt: Number(res.headers.get('x-created-at'))
+  };
 }

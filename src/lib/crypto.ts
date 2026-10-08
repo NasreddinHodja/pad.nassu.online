@@ -146,6 +146,12 @@ export const sealName = async (keys: Keys, id: string, path: string) =>
 export const openName = async (keys: Keys, id: string, sealed: string) =>
   utf8Decode.decode(await open(keys.content, fromBase64(sealed), `pad name\n${id}`));
 
+// The root's theme, which isn't any one pad's.
+export const sealTheme = async (keys: Keys, json: string) =>
+  seal(keys.content, utf8.encode(json), 'pad theme');
+export const openTheme = async (keys: Keys, data: Bytes) =>
+  utf8Decode.decode(await open(keys.content, data, 'pad theme'));
+
 // A read-only link: a copy of a pad and those under it, sealed under a key of
 // its own, which the link carries after its `#`, so the server never gets it.
 // The root keeps the key too, sealed, for its owners to list the links again.

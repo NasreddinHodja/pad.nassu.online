@@ -18,7 +18,7 @@ SvelteKit on Bun (=@sveltejs/adapter-bun=), one SQLite file through =bun:sqlite=
 
 + =Gate.svelte= to claim or unlock the root, when the server or the browser lacks what it needs: an unlock cookie on one side, the keys in IndexedDB on the other;
 + =Gate.svelte= in =password= mode, for =?password=;
-+ =Pad.svelte= otherwise, with =Finder.svelte= under it, =Share.svelte= when its header's *share* is pressed, and =Delete.svelte= for a root's *delete*.
++ =Pad.svelte= otherwise, with =Finder.svelte= under it, =Share.svelte= when its header's *share* is pressed, =ThemePicker.svelte= for a root's *theme* and =Delete.svelte= for its *delete*.
 
 * The editor
 
@@ -26,12 +26,14 @@ SvelteKit on Bun (=@sveltejs/adapter-bun=), one SQLite file through =bun:sqlite=
 
 *export* (=export.ts=) lists the root's pads with their sealed sizes, refuses past 64 MiB before fetching any, then loads the pad and those under it four at a time, and writes them into a zip in the browser (=zip.ts=: deflated by =CompressionStream=, no zip64).
 
+*theme* (=theme.ts=) sets the root's three colours on =<html>=; =layout.css= mixes the rest from them, and the marble is redrawn in the background and ink2 on a canvas. =[...path]/+page.svelte= applies it on every page of the root, the gate's included, from what this browser last saw (=localStorage=, which =app.html= also reads before the first paint), then from the root's copy. Locking or deleting the root forgets it here.
+
 * Database
 
-=src/lib/server/db.ts=, =auth.ts= and =shares.ts=; =trash.ts= marks, reclaims and purges. =PAD_DB= names the file (=data/pad.db= in dev). WAL mode.
+=src/lib/server/db.ts=, =auth.ts=, =shares.ts= and =theme.ts=; =trash.ts= marks, reclaims and purges. =PAD_DB= names the file (=data/pad.db= in dev). WAL mode.
 
 + =sealed= :: one row per pad: its root, =id= (the HMAC of its path), =name= (its path, encrypted), =data= (its text, encrypted), =updated_at=, =deleted_at= (when it was emptied or its root deleted).
-+ =roots= :: one row per claimed root: salt, SHA-256 of =auth=, the encrypted root key, =deleted_at=.
++ =roots= :: one row per claimed root: salt, SHA-256 of =auth=, the encrypted root key, =deleted_at=, =theme= (its colours, encrypted; null until one is picked).
 + =unlocks= :: one row per browser per root it unlocked: SHA-256 of the cookie's token, when it was made, when it was last used.
 + =devices= :: one row per browser per root it has ever unlocked: SHA-256 of the device cookie's token, when it was last seen there. Kept through locking; gone after 180 days unseen.
 + =shares= :: one row per read-only link: its random =id=, root, =pad= (the pad's id), =sealed_key= (the link's key, encrypted under the root's), =data= (the copy, encrypted under the link's key), =created_at=.

@@ -27,14 +27,16 @@
 }
 
 @theme {
-  /* konigslibrary's bubblegum palette, mixed as in its docs/design/system.org. */
+  /* konigslibrary's palette (docs/design/system.org): background, text and
+     ink are the root's theme (lib/theme.ts); the rest is mixed from them.
+     These are bubblegum's, until a theme sets its own. */
   --color-bg: #000000;
   --color-fg: #ffe0f0;
   --color-ink: #ff8fc8;
   --color-hi: #ffbcde;
-  --color-dim: #ab96a1;
-  --color-ink2: #995678;
-  --color-ink3: #4d2b3c;
+  --color-dim: color-mix(in srgb, var(--color-fg) 67%, var(--color-bg));
+  --color-ink2: color-mix(in srgb, var(--color-ink) 60%, var(--color-bg));
+  --color-ink3: color-mix(in srgb, var(--color-ink) 30%, var(--color-bg));
   /* A bitmap font is only crisp at its own height or twice it. */
   --font-sans: 'VGA', monospace;
   --font-mono: 'VGA', monospace;
@@ -83,13 +85,14 @@ body {
   overflow-x: clip;
 }
 
-/* Anthony Thyssen's marble.xbm in ink2 at 2x, as on nassu.online. */
+/* Anthony Thyssen's marble.xbm in ink2 at 2x, as on nassu.online; another
+   theme's, redrawn in its colours (lib/theme.ts). */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
-  background-image: url('/bg.png');
+  background-image: var(--texture, url('/bg.png'));
   image-rendering: pixelated;
 }
 

@@ -4,6 +4,7 @@
   import type { Keys } from './crypto';
   import type { Pad } from './export';
   import { fadeOut, flyIn } from './motion';
+  import type { Theme } from './theme';
 
   // The pad's read-only links: each a copy of the pad and those under it as
   // they were when made.
@@ -12,6 +13,7 @@
     keys,
     path,
     collect,
+    theme,
     onclose
   }: {
     root: string;
@@ -19,6 +21,8 @@
     path: string;
     /** The pad and those under it, saved first. */
     collect: (progress: (done: number, total: number) => void) => Promise<Pad[]>;
+    /** The root's, for the link to show the copy in. */
+    theme: Theme;
     onclose: () => void;
   } = $props();
 
@@ -57,7 +61,7 @@
     try {
       const pads = await collect((done, total) => (busy = `reading ${done}/${total}…`));
       busy = 'sealing…';
-      const link = await api.share(root, keys, path, pads);
+      const link = await api.share(root, keys, path, pads, theme);
       links = [...(links ?? []), link];
       await copy(link);
     } catch (e) {

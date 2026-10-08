@@ -10,9 +10,24 @@
   import Share from './Share.svelte';
   import { href } from './href';
   import { fadeOut, flyIn } from './motion';
+  import { rememberTheme, type Theme } from './theme';
+  import ThemePicker from './ThemePicker.svelte';
   import { under } from './tree';
 
-  let { path, root, keys }: { path: string; root: string; keys: Keys } = $props();
+  let {
+    path,
+    root,
+    keys,
+    theme,
+    retheme
+  }: {
+    path: string;
+    root: string;
+    keys: Keys;
+    /** The root's, which its pads all take. */
+    theme: Theme;
+    retheme: (theme: Theme, keep: boolean) => Promise<void>;
+  } = $props();
 
   const SAVE_DELAY = 600;
   const POLL = 5000;
@@ -30,6 +45,7 @@
   let ready = $state(false);
   let sharing = $state(false);
   let deleting = $state(false);
+  let theming = $state(false);
   // Only a root is deleted outright; a pad under it, by emptying it.
   const isRoot = !where.path.includes('/');
   // The actions, behind one button on a phone.
@@ -157,6 +173,7 @@
   async function lock() {
     await save();
     if (content !== saved) return;
+    rememberTheme(where.root, null);
     await Promise.all([api.lock(where.root), forgetKeys(where.root)]).catch(() => {});
     goto('/');
   }
@@ -168,6 +185,7 @@
     if (content !== saved) throw new Error("the pad isn't saved yet, try again");
     await api.remove(where.root);
     saved = null;
+    rememberTheme(where.root, null);
     await forgetKeys(where.root);
     await invalidateAll();
   }
@@ -175,6 +193,7 @@
   const actions = $derived([
     { label: 'share', disabled: !ready, run: () => (sharing = true) },
     { label: 'export', disabled: !ready, run: exportAll },
+    ...(isRoot ? [{ label: 'theme', disabled: !ready, run: () => (theming = true) }] : []),
     { label: 'password', disabled: false, run: () => goto('?password') },
     ...(isRoot ? [{ label: 'delete', disabled: !ready, run: () => (deleting = true) }] : []),
     { label: 'lock', disabled: false, run: lock }
@@ -268,6 +287,13 @@
         disabled={!ready}
         onclick={exportAll}>export</button
       >
+      {#if isRoot}
+        <button
+          class="hit relative cursor-pointer text-ink hover:text-hi hover:underline disabled:cursor-default disabled:opacity-40"
+          disabled={!ready}
+          onclick={() => (theming = true)}>theme</button
+        >
+      {/if}
       <a class="hit relative text-ink hover:text-hi hover:underline" href="?password">password</a>
       {#if isRoot}
         <button
@@ -348,8 +374,20 @@
       if (content !== saved) throw new Error("the pad isn't saved yet, try again");
       return collect(where.root, where.keys, where.path, progress);
     }}
+    {theme}
     onclose={() => {
       sharing = false;
+      textarea.focus();
+    }}
+  />
+{/if}
+
+{#if theming}
+  <ThemePicker
+    {theme}
+    {retheme}
+    onclose={() => {
+      theming = false;
       textarea.focus();
     }}
   />
