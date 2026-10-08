@@ -18,12 +18,15 @@ import {
   MAX_SHARES,
   removeShare
 } from '#lib/server/shares.ts';
+import { deletedAt } from '#lib/server/trash.ts';
 import type { RequestHandler } from './$types';
 
 // A read-only link's copy, for anyone with the link: without the key after
 // its `#` it's noise.
+// A deleted root's links are quiet until it's reclaimed.
 export const GET: RequestHandler = ({ params }) => {
-  const row = getShare(rootParam(params.root), shareIdParam(params.share));
+  const root = rootParam(params.root);
+  const row = deletedAt(root) === null ? getShare(root, shareIdParam(params.share)) : null;
   if (!row) error(404, 'this link was revoked, or never was');
   return new Response(new Uint8Array(row.data), {
     headers: {

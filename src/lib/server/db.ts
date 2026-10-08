@@ -27,18 +27,23 @@ db.run(`CREATE TABLE IF NOT EXISTS sealed (
   updated_at INTEGER NOT NULL,
   PRIMARY KEY (root, id)
 ) WITHOUT ROWID`);
+// Emptied pads and those of deleted roots: when, until trash.ts purges them.
+if (!db.query("SELECT 1 FROM pragma_table_info('sealed') WHERE name = 'deleted_at'").get())
+  db.run('ALTER TABLE sealed ADD COLUMN deleted_at INTEGER');
+db.run(
+  'CREATE INDEX IF NOT EXISTS sealed_deleted ON sealed (deleted_at) WHERE deleted_at IS NOT NULL'
+);
 
 const getStmt = db.query<{ data: Uint8Array; updated_at: number }, [string, string]>(
-  'SELECT data, updated_at FROM sealed WHERE root = ? AND id = ?'
+  'SELECT data, updated_at FROM sealed WHERE root = ? AND id = ? AND deleted_at IS NULL'
 );
 const putStmt = db.query(
   `INSERT INTO sealed (root, id, name, data, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)
-   ON CONFLICT(root, id) DO UPDATE SET name = ?3, data = ?4, updated_at = ?5`
+   ON CONFLICT(root, id) DO UPDATE SET name = ?3, data = ?4, updated_at = ?5, deleted_at = NULL`
 );
-const deleteStmt = db.query('DELETE FROM sealed WHERE root = ? AND id = ?');
 // `size`, the sealed text's, for an export to know what it's in for.
 const listStmt = db.query<{ id: string; name: string; size: number }, [string]>(
-  'SELECT id, name, length(data) AS size FROM sealed WHERE root = ? ORDER BY id LIMIT 5000'
+  'SELECT id, name, length(data) AS size FROM sealed WHERE root = ? AND deleted_at IS NULL ORDER BY id LIMIT 5000'
 );
 // The root's own pad and every one under `root/`: '0' is the character after
 // '/', so the range is exactly the paths starting with `root/`.
@@ -51,16 +56,11 @@ export function getSealed(root: string, id: string) {
   return getStmt.get(root, id);
 }
 
-/** Last write wins. */
+/** Last write wins, and unmarks an emptied pad. */
 export function putSealed(root: string, id: string, name: string, data: Uint8Array) {
   const now = Date.now();
   putStmt.run(root, id, name, data, now);
   return now;
-}
-
-/** An empty pad is deleted, so it drops out of its parent's list. */
-export function deleteSealed(root: string, id: string) {
-  deleteStmt.run(root, id);
 }
 
 export function listSealed(root: string) {

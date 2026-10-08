@@ -38,8 +38,9 @@
   <Gate
     path={data.path}
     root={data.root}
-    mode={data.state === 'open' ? 'claim' : 'unlock'}
+    mode={data.state === 'open' || data.state === 'deleted' ? 'claim' : 'unlock'}
     salt={data.salt}
+    purgeAt={data.purgeAt}
     {onunlock}
   />
 {:else if page.url.searchParams.has('password')}

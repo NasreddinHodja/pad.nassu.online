@@ -16,6 +16,7 @@ import {
   verify
 } from '#lib/server/auth.ts';
 import { checkRate } from '#lib/server/limits.ts';
+import { deleteRoot, reclaimRoot } from '#lib/server/trash.ts';
 import type { RequestEvent, RequestHandler } from './$types';
 
 /**
@@ -61,8 +62,10 @@ export const POST: RequestHandler = async (event) => {
       return new Response(null, { status: 204 });
     }
 
+    // A deleted root's password reclaims it.
     case 'unlock': {
       const sealedKey = attempt(event, root, bytes((await body(event.request)).auth, AUTH_BYTES));
+      reclaimRoot(root);
       unlock(cookies, root);
       return json({ sealedKey: Buffer.from(sealedKey).toString('base64url') });
     }
@@ -76,6 +79,12 @@ export const POST: RequestHandler = async (event) => {
       setPassword(root, next, cookies);
       return new Response(null, { status: 204 });
     }
+
+    // Marks the root and its pads, and signs every browser out of it.
+    case 'delete':
+      unlocked(event, root);
+      deleteRoot(root);
+      return new Response(null, { status: 204 });
 
     case 'lock':
       lock(cookies, root);

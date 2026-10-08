@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { beforeNavigate, goto } from '$app/navigation';
+  import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
   import { onMount, tick, untrack } from 'svelte';
   import * as api from './api';
   import { blockCaret } from './caret';
   import { forgetKeys, type Keys } from './crypto';
+  import Delete from './Delete.svelte';
   import { collect, download, exportPads } from './export';
   import Finder from './Finder.svelte';
   import Share from './Share.svelte';
@@ -28,6 +29,9 @@
   let subpads = $state<string[]>([]);
   let ready = $state(false);
   let sharing = $state(false);
+  let deleting = $state(false);
+  // Only a root is deleted outright; a pad under it, by emptying it.
+  const isRoot = !where.path.includes('/');
   // The actions, behind one button on a phone.
   let menu = $state(false);
   let menuWrap = $state<HTMLDivElement>();
@@ -157,10 +161,22 @@
     goto('/');
   }
 
+  // Saves first, so reclaiming the root gets back what's on screen. Then
+  // nothing's left to save, and the page shows the claim screen.
+  async function removeRoot() {
+    await save();
+    if (content !== saved) throw new Error("the pad isn't saved yet, try again");
+    await api.remove(where.root);
+    saved = null;
+    await forgetKeys(where.root);
+    await invalidateAll();
+  }
+
   const actions = $derived([
     { label: 'share', disabled: !ready, run: () => (sharing = true) },
     { label: 'export', disabled: !ready, run: exportAll },
     { label: 'password', disabled: false, run: () => goto('?password') },
+    ...(isRoot ? [{ label: 'delete', disabled: !ready, run: () => (deleting = true) }] : []),
     { label: 'lock', disabled: false, run: lock }
   ]);
 
@@ -253,6 +269,13 @@
         onclick={exportAll}>export</button
       >
       <a class="hit relative text-ink hover:text-hi hover:underline" href="?password">password</a>
+      {#if isRoot}
+        <button
+          class="hit relative cursor-pointer text-ink hover:text-hi hover:underline disabled:cursor-default disabled:opacity-40"
+          disabled={!ready}
+          onclick={() => (deleting = true)}>delete</button
+        >
+      {/if}
       <button
         class="hit relative cursor-pointer text-ink hover:text-hi hover:underline"
         onclick={lock}>lock</button
@@ -327,6 +350,17 @@
     }}
     onclose={() => {
       sharing = false;
+      textarea.focus();
+    }}
+  />
+{/if}
+
+{#if deleting}
+  <Delete
+    root={where.root}
+    remove={removeRoot}
+    onclose={() => {
+      deleting = false;
       textarea.focus();
     }}
   />

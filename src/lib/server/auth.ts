@@ -25,6 +25,7 @@ import { dev } from '$app/env';
 import type { Cookies, RequestEvent } from '@sveltejs/kit';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { db } from './db.ts';
+import { purgeDue, purgeRoot } from './trash.ts';
 
 export const SALT_BYTES = 16;
 export const AUTH_BYTES = 32;
@@ -51,6 +52,9 @@ db.run(`CREATE TABLE IF NOT EXISTS roots (
   sealed_key BLOB NOT NULL,
   created_at INTEGER NOT NULL
 ) WITHOUT ROWID`);
+// A deleted root's, until it's reclaimed or trash.ts purges it.
+if (!db.query("SELECT 1 FROM pragma_table_info('roots') WHERE name = 'deleted_at'").get())
+  db.run('ALTER TABLE roots ADD COLUMN deleted_at INTEGER');
 db.run(`CREATE TABLE IF NOT EXISTS unlocks (
   token_hash BLOB NOT NULL,
   root TEXT NOT NULL,
@@ -66,9 +70,14 @@ db.run(`CREATE TABLE IF NOT EXISTS devices (
   PRIMARY KEY (token_hash, root)
 ) WITHOUT ROWID`);
 
-type Root = { salt: Uint8Array; auth_hash: Uint8Array; sealed_key: Uint8Array };
+type Root = {
+  salt: Uint8Array;
+  auth_hash: Uint8Array;
+  sealed_key: Uint8Array;
+  deleted_at: number | null;
+};
 const rootStmt = db.query<Root, [string]>(
-  'SELECT salt, auth_hash, sealed_key FROM roots WHERE name = ?'
+  'SELECT salt, auth_hash, sealed_key, deleted_at FROM roots WHERE name = ?'
 );
 const claimStmt = db.query(
   `INSERT OR IGNORE INTO roots (name, salt, auth_hash, sealed_key, created_at)
@@ -109,10 +118,13 @@ export function saltOf(root: string) {
   return rootStmt.get(root)?.salt ?? null;
 }
 
-/** Sets the root's password unless someone already has. */
-export function claim(root: string, salt: Uint8Array, auth: Uint8Array, sealedKey: Uint8Array) {
-  return claimStmt.run(root, salt, sha256(auth), sealedKey, Date.now()).changes === 1;
-}
+/** Sets the root's password unless someone already has. A deleted root is purged first. */
+export const claim = db.transaction(
+  (root: string, salt: Uint8Array, auth: Uint8Array, sealedKey: Uint8Array) => {
+    if (rootStmt.get(root)?.deleted_at != null) purgeRoot(root);
+    return claimStmt.run(root, salt, sha256(auth), sealedKey, Date.now()).changes === 1;
+  }
+);
 
 /** The sealed root key, if `auth` is the root's. */
 export function verify(root: string, auth: Uint8Array) {
@@ -133,11 +145,14 @@ export function setPassword(
   })();
 }
 
-export type Access = 'open' | 'unlocked' | 'locked';
+export type Access = 'open' | 'deleted' | 'unlocked' | 'locked';
 
-/** Open: no one has claimed the root yet. */
+/** Open: no one has claimed the root yet. Deleted: claimable, or its password reclaims it. */
 export function access(cookies: Cookies, root: string): Access {
-  if (!rootStmt.get(root)) return 'open';
+  purgeDue();
+  const claimed = rootStmt.get(root);
+  if (!claimed) return 'open';
+  if (claimed.deleted_at !== null) return 'deleted';
   const token = cookies.get(COOKIE);
   if (!token) return 'locked';
   const now = Date.now();

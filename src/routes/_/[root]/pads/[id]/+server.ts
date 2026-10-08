@@ -1,8 +1,9 @@
 import { error, json } from '@sveltejs/kit';
 import { ours, padIdParam, readCapped, rootParam, unlocked } from '#lib/server/api.ts';
 import { rootOf } from '#lib/server/auth.ts';
-import { deleteSealed, getSealed, migrateLegacy, putSealed } from '#lib/server/db.ts';
+import { getSealed, migrateLegacy, putSealed } from '#lib/server/db.ts';
 import { checkRate, MAX_SEALED, MAX_SEALED_NAME } from '#lib/server/limits.ts';
+import { markPad } from '#lib/server/trash.ts';
 import type { RequestEvent, RequestHandler } from './$types';
 
 function target(event: RequestEvent) {
@@ -44,11 +45,12 @@ export const PUT: RequestHandler = async (event) => {
   return new Response(null, { status: 204 });
 };
 
+// An emptied pad: marked, and purged in 30 days unless it's saved again.
 export const DELETE: RequestHandler = (event) => {
   ours(event);
   const { root, id } = target(event);
   checkRate(event.getClientAddress());
-  deleteSealed(root, id);
+  markPad(root, id);
   return new Response(null, { status: 204 });
 };
 

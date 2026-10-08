@@ -90,6 +90,9 @@ export async function changePassword(root: string, current: string, next: string
 
 export const lock = (root: string) => post(`${base(root)}/auth/lock`, {});
 
+/** Marks the root and its pads deleted, and signs every browser out; its password reclaims it. */
+export const remove = (root: string) => post(`${base(root)}/auth/delete`, {});
+
 /**
  * Every pad path in the root. Pads from before encryption get encrypted on
  * the way, and their plain text deleted from the server.

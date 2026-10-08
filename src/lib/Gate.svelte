@@ -9,14 +9,22 @@
     root,
     mode,
     salt,
+    purgeAt = null,
     onunlock
   }: {
     path: string;
     root: string;
     mode: 'claim' | 'unlock' | 'password';
     salt: string | null;
+    /** A deleted root's purge: until then, claiming it offers to reclaim it. */
+    purgeAt?: number | null;
     onunlock: (keys: Keys) => void;
   } = $props();
+
+  // Reclaiming a deleted root is unlocking it with its old password.
+  let reclaiming = $state(false);
+  const form = $derived(reclaiming ? 'unlock' : mode);
+  const day = (ms: number) => new Date(ms).toLocaleDateString(undefined, { dateStyle: 'medium' });
 
   // The fields have no names, so even with scripts off the form can't send
   // a password anywhere: it only ever leaves through the code below, as keys.
@@ -28,15 +36,15 @@
 
   async function onsubmit(e: SubmitEvent) {
     e.preventDefault();
-    if (mode !== 'unlock') {
+    if (form !== 'unlock') {
       const bad = checkPassword(next) ?? (next !== confirm ? "the passwords don't match" : null);
       if (bad) return (problem = bad);
     }
     busy = true;
     problem = '';
     try {
-      if (mode === 'claim') onunlock(await api.claim(root, next));
-      else if (mode === 'unlock') onunlock(await api.unlock(root, current, salt!));
+      if (form === 'claim') onunlock(await api.claim(root, next));
+      else if (form === 'unlock') onunlock(await api.unlock(root, current, salt!));
       else {
         await api.changePassword(root, current, next, salt!);
         await goto(href(path.split('/')), { invalidateAll: true });
@@ -72,8 +80,22 @@
   <form class="flex w-full max-w-xl flex-col gap-3 panel p-3 sm:p-6" {onsubmit}>
     <!-- For password managers: what the password is for. -->
     <input type="text" autocomplete="username" value="/{root}" hidden readonly />
-    {#if mode === 'claim'}
+    {#if form === 'claim'}
       <h1 class="border-b border-ink text-xl break-all">/{root} is free</h1>
+      {#if purgeAt !== null}
+        <p class="text-ink">
+          ► a deleted /{root} is still here until {day(purgeAt)}. its old password reclaims it;
+          claiming /{root} anew deletes it for good.
+          <button
+            type="button"
+            class="hit relative cursor-pointer text-ink underline hover:text-hi"
+            onclick={() => {
+              reclaiming = true;
+              problem = '';
+            }}>reclaim it</button
+          >
+        </p>
+      {/if}
       <p class="text-dim">
         set its password. it locks /{root} and every pad under it, for reading too. the pads are encrypted
         with it in your browser: the server never sees it, so if you lose it, the pads are gone.
@@ -90,8 +112,15 @@
         () => confirm,
         (v) => (confirm = v)
       )}
-    {:else if mode === 'unlock'}
-      <h1 class="border-b border-ink text-xl break-all">/{root} is locked</h1>
+    {:else if form === 'unlock'}
+      <h1 class="border-b border-ink text-xl break-all">
+        /{root} is {reclaiming ? 'deleted' : 'locked'}
+      </h1>
+      {#if reclaiming && purgeAt !== null}
+        <p class="text-dim">
+          its old password brings it back, with every pad and link it had, until {day(purgeAt)}.
+        </p>
+      {/if}
       {@render field(
         'password',
         'current-password',
@@ -130,13 +159,24 @@
       >
         {busy
           ? 'deriving keys…'
-          : mode === 'claim'
+          : form === 'claim'
             ? 'claim'
-            : mode === 'unlock'
-              ? 'unlock'
-              : 'change'}
+            : reclaiming
+              ? 'reclaim'
+              : form === 'unlock'
+                ? 'unlock'
+                : 'change'}
       </button>
-      {#if mode === 'password'}
+      {#if reclaiming}
+        <button
+          type="button"
+          class="hit relative cursor-pointer text-ink hover:text-hi hover:underline"
+          onclick={() => {
+            reclaiming = false;
+            problem = '';
+          }}>claim anew</button
+        >
+      {:else if mode === 'password'}
         <a class="hit relative text-ink hover:text-hi hover:underline" href={href(path.split('/'))}
           >cancel</a
         >
