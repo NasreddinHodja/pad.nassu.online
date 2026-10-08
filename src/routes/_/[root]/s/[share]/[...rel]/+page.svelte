@@ -66,27 +66,30 @@
   <header
     class="flex flex-wrap items-center gap-x-4 panel px-3 py-1 pointer-coarse:gap-y-2 pointer-coarse:py-2"
   >
-    <nav class="flex min-w-0 flex-wrap" aria-label="path">
+    <nav
+      class="flex min-w-0 flex-1 [scrollbar-width:none] overflow-x-auto whitespace-nowrap"
+      aria-label="path"
+    >
       <a class="hit relative text-ink hover:text-hi hover:underline" href="/">pad</a>
       {#if shared}
         <span class="px-1 text-dim">/</span>
         <!-- The pad the link was made at, then where in the copy this is. -->
         {#if relParts.length}
-          <a class="hit relative break-all text-ink hover:text-hi hover:underline" href={within([])}
+          <a class="hit relative text-ink hover:text-hi hover:underline" href={within([])}
             >{shared.path}</a
           >
         {:else}
-          <span class="break-all" aria-current="page">{shared.path}</span>
+          <span aria-current="page">{shared.path}</span>
         {/if}
         {#each relParts as segment, i (i)}
           <span class="px-1 text-dim">/</span>
           {#if i < relParts.length - 1}
             <a
-              class="hit relative break-all text-ink hover:text-hi hover:underline"
+              class="hit relative text-ink hover:text-hi hover:underline"
               href={within(relParts.slice(0, i + 1))}>{segment}</a
             >
           {:else}
-            <span class="break-all" aria-current="page">{segment}</span>
+            <span aria-current="page">{segment}</span>
           {/if}
         {/each}
       {/if}

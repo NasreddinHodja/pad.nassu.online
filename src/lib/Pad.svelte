@@ -1,12 +1,13 @@
 <script lang="ts">
   import { beforeNavigate, goto } from '$app/navigation';
-  import { onMount, untrack } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import * as api from './api';
   import { forgetKeys, type Keys } from './crypto';
   import { collect, download, exportPads } from './export';
   import Finder from './Finder.svelte';
   import Share from './Share.svelte';
   import { href } from './href';
+  import { fadeOut, flyIn } from './motion';
   import { under } from './tree';
 
   let { path, root, keys }: { path: string; root: string; keys: Keys } = $props();
@@ -26,6 +27,14 @@
   let subpads = $state<string[]>([]);
   let ready = $state(false);
   let sharing = $state(false);
+  // The actions, behind one button on a phone.
+  let menu = $state(false);
+  let menuWrap = $state<HTMLDivElement>();
+  let crumbs: HTMLElement;
+  // How many segments after the first are folded into "…" so the path fits.
+  let folded = $state(0);
+  let held: ReturnType<typeof setTimeout> | undefined;
+  let copied = false;
   let textarea: HTMLTextAreaElement;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let saving = false;
@@ -97,6 +106,9 @@
 
   onMount(() => {
     open();
+    const fits = new ResizeObserver(fit);
+    fits.observe(crumbs);
+    document.fonts.ready.then(fit);
     const poll = setInterval(refresh, POLL);
     // Encrypting takes a moment the page may not get once it unloads, so a
     // hidden tab saves straight away.
@@ -107,6 +119,7 @@
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('beforeunload', onUnload);
     return () => {
+      fits.disconnect();
       clearInterval(poll);
       clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisible);
@@ -143,6 +156,39 @@
     goto('/');
   }
 
+  const actions = $derived([
+    { label: 'share', disabled: !ready, run: () => (sharing = true) },
+    { label: 'export', disabled: !ready, run: exportAll },
+    { label: 'password', disabled: false, run: () => goto('?password') },
+    { label: 'lock', disabled: false, run: lock }
+  ]);
+
+  // The path on one line: the first segment, "…", then as many of the last as
+  // fit. A single segment too long for the row still scrolls, to its end.
+  async function fit() {
+    folded = 0;
+    await tick();
+    while (crumbs.scrollWidth > crumbs.clientWidth && folded < segments.length - 2) {
+      folded++;
+      await tick();
+    }
+    crumbs.scrollLeft = crumbs.scrollWidth;
+  }
+
+  // Holding the path copies all of it.
+  function onpointerdown() {
+    copied = false;
+    held = setTimeout(async () => {
+      copied = true;
+      await navigator.clipboard.writeText('/' + where.path).then(
+        () => (status = 'path copied'),
+        () => (status = "► couldn't copy the path")
+      );
+    }, 500);
+  }
+
+  const letGo = () => clearTimeout(held);
+
   beforeNavigate(() => {
     if (saved !== null && content !== saved) save();
   });
@@ -150,41 +196,97 @@
 
 <div class="mx-auto flex h-dvh max-w-6xl flex-col gap-3 p-3 sm:p-6">
   <header
-    class="flex flex-wrap items-center gap-x-4 panel px-3 py-1 pointer-coarse:gap-y-2 pointer-coarse:py-2"
+    class="relative flex items-center gap-x-4 panel px-3 py-1 max-sm:flex-wrap pointer-coarse:py-2"
   >
-    <nav class="flex min-w-0 flex-wrap" aria-label="path">
+    <nav
+      bind:this={crumbs}
+      class="flex min-w-0 flex-1 [scrollbar-width:none] overflow-x-auto whitespace-nowrap select-none [-webkit-touch-callout:none]"
+      aria-label="path"
+      title="hold to copy the path"
+      {onpointerdown}
+      onpointerup={letGo}
+      onpointerleave={letGo}
+      onpointercancel={letGo}
+      oncontextmenu={(e) => copied && e.preventDefault()}
+      onclickcapture={(e) => {
+        if (!copied) return;
+        copied = false;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+    >
       <a class="hit relative text-ink hover:text-hi hover:underline" href="/">pad</a>
       {#each segments as segment, i (i)}
-        <span class="px-1 text-dim">/</span>
-        {#if i < segments.length - 1}
-          <a
-            class="hit relative break-all text-ink hover:text-hi hover:underline"
-            href={href(segments.slice(0, i + 1))}>{segment}</a
-          >
-        {:else}
-          <span class="break-all" aria-current="page">{segment}</span>
+        {#if i === 0 || i > folded}
+          <span class="px-1 text-dim">/</span>
+          {#if i < segments.length - 1}
+            <a
+              class="hit relative text-ink hover:text-hi hover:underline"
+              href={href(segments.slice(0, i + 1))}>{segment}</a
+            >
+          {:else}
+            <span aria-current="page">{segment}</span>
+          {/if}
+        {:else if i === 1}
+          <span class="px-1 text-dim">/</span>
+          <span class="text-dim" title={segments.slice(1, folded + 1).join('/')}>…</span>
         {/if}
       {/each}
     </nav>
+    <!-- An error is too long to share the row on a phone; it goes under it. -->
     <span
-      class="ml-auto min-w-[8ch] text-right {status.startsWith('►') ? 'text-ink' : 'text-dim'}"
+      class="min-w-[8ch] shrink-0 text-right {status.startsWith('►')
+        ? 'text-ink max-sm:order-last max-sm:basis-full max-sm:text-left'
+        : 'text-dim'}"
       aria-live="polite">{status}</span
     >
-    <button
-      class="hit relative cursor-pointer text-ink hover:text-hi hover:underline disabled:cursor-default disabled:opacity-40"
-      disabled={!ready}
-      onclick={() => (sharing = true)}>share</button
-    >
-    <button
-      class="hit relative cursor-pointer text-ink hover:text-hi hover:underline disabled:cursor-default disabled:opacity-40"
-      disabled={!ready}
-      onclick={exportAll}>export</button
-    >
-    <a class="hit relative text-ink hover:text-hi hover:underline" href="?password">password</a>
-    <button
-      class="hit relative cursor-pointer text-ink hover:text-hi hover:underline"
-      onclick={lock}>lock</button
-    >
+    <div class="flex gap-x-4 max-sm:hidden">
+      <button
+        class="hit relative cursor-pointer text-ink hover:text-hi hover:underline disabled:cursor-default disabled:opacity-40"
+        disabled={!ready}
+        onclick={() => (sharing = true)}>share</button
+      >
+      <button
+        class="hit relative cursor-pointer text-ink hover:text-hi hover:underline disabled:cursor-default disabled:opacity-40"
+        disabled={!ready}
+        onclick={exportAll}>export</button
+      >
+      <a class="hit relative text-ink hover:text-hi hover:underline" href="?password">password</a>
+      <button
+        class="hit relative cursor-pointer text-ink hover:text-hi hover:underline"
+        onclick={lock}>lock</button
+      >
+    </div>
+    <div bind:this={menuWrap} class="sm:hidden">
+      <button
+        class="hit relative cursor-pointer text-ink hover:text-hi hover:underline"
+        aria-expanded={menu}
+        aria-controls="pad-menu"
+        onclick={() => (menu = !menu)}>{menu ? '×' : '≡'}<span class="sr-only"> menu</span></button
+      >
+      {#if menu}
+        <div
+          id="pad-menu"
+          class="absolute top-full right-0 z-10 mt-3 flex min-w-[20ch] flex-col panel p-3"
+          in:flyIn
+          out:fadeOut
+        >
+          {#each actions as item, i (item.label)}
+            <button
+              class="cursor-pointer border border-ink px-2 py-2 text-left text-ink hover:bg-ink3 hover:text-hi disabled:cursor-default disabled:opacity-40 {i >
+              0
+                ? '-mt-px'
+                : ''}"
+              disabled={item.disabled}
+              onclick={() => {
+                menu = false;
+                item.run();
+              }}>› {item.label}</button
+            >
+          {/each}
+        </div>
+      {/if}
+    </div>
   </header>
 
   <textarea
@@ -201,6 +303,15 @@
 
   <Finder base={path} items={subpads} onclose={() => textarea.focus()} />
 </div>
+
+<svelte:window
+  onclick={(e) => {
+    if (menu && !menuWrap?.contains(e.target as Node)) menu = false;
+  }}
+  onkeydown={(e) => {
+    if (menu && e.key === 'Escape') menu = false;
+  }}
+/>
 
 {#if sharing}
   <Share
