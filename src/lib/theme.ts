@@ -8,14 +8,18 @@ export type Theme = { bg: string; fg: string; ink: string };
 export type ThemePreset = Theme & { id: string; name: string };
 
 export const PRESETS: ThemePreset[] = [
+  // pad's own, for long reading: off-black and off-white, so the text doesn't
+  // glare; text near APCA's Lc 90, links and buttons over WCAG's 7:1.
+  { id: 'dusk', name: 'dusk', bg: '#171a2b', fg: '#ece6f3', ink: '#f7b2d6' },
+  { id: 'dawn', name: 'dawn', bg: '#f3f2fa', fg: '#1d2140', ink: '#8a2560' },
   { id: 'onebark', name: 'one bark', bg: '#282c34', fg: '#dcdfe4', ink: '#c678dd' },
   { id: 'bubblegum', name: 'bubblegum', bg: '#000000', fg: '#ffe0f0', ink: '#ff8fc8' },
   { id: 'paper', name: 'paper', bg: '#f4f0e8', fg: '#141414', ink: '#141414' },
   { id: 'white', name: 'white', bg: '#000000', fg: '#ffffff', ink: '#ffffff' }
 ];
 
-/** layout.css's, and a root's until it picks another. */
-export const DEFAULT: Theme = { bg: '#000000', fg: '#ffe0f0', ink: '#ff8fc8' };
+/** Dusk: layout.css's and bg.png's, and a root's until it picks another. */
+export const DEFAULT: Theme = { bg: '#171a2b', fg: '#ece6f3', ink: '#f7b2d6' };
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
@@ -91,7 +95,8 @@ async function texture(theme: Theme) {
   g.drawImage(img, 0, 0);
   const data = g.getImageData(0, 0, img.width, img.height);
   const [bg, ink2] = [rgb(theme.bg), rgb(mix(theme.ink, theme.bg, 0.6))];
-  for (let i = 0; i < data.data.length; i += 4) data.data.set(data.data[i] ? ink2 : bg, i);
+  const red = rgb(DEFAULT.bg)[0];
+  for (let i = 0; i < data.data.length; i += 4) data.data.set(data.data[i] !== red ? ink2 : bg, i);
   g.putImageData(data, 0, 0);
   const url = canvas.toDataURL('image/png');
   textures.set(key, url);

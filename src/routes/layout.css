@@ -29,11 +29,11 @@
 @theme {
   /* konigslibrary's palette (docs/design/system.org): background, text and
      ink are the root's theme (lib/theme.ts); the rest is mixed from them.
-     These are bubblegum's, until a theme sets its own. */
-  --color-bg: #000000;
-  --color-fg: #ffe0f0;
-  --color-ink: #ff8fc8;
-  --color-hi: #ffbcde;
+     These are dusk's, until a theme sets its own. */
+  --color-bg: #171a2b;
+  --color-fg: #ece6f3;
+  --color-ink: #f7b2d6;
+  --color-hi: #fad1e6;
   --color-dim: color-mix(in srgb, var(--color-fg) 67%, var(--color-bg));
   --color-ink2: color-mix(in srgb, var(--color-ink) 60%, var(--color-bg));
   --color-ink3: color-mix(in srgb, var(--color-ink) 30%, var(--color-bg));
@@ -85,8 +85,8 @@ body {
   overflow-x: clip;
 }
 
-/* Anthony Thyssen's marble.xbm in ink2 at 2x, as on nassu.online; another
-   theme's, redrawn in its colours (lib/theme.ts). */
+/* Anthony Thyssen's marble.xbm in dusk's ink2 at 2x; another theme's,
+   redrawn in its colours (lib/theme.ts). */
 body::before {
   content: '';
   position: fixed;
