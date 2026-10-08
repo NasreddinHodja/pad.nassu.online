@@ -62,7 +62,9 @@ export function blockCaret(field: HTMLTextAreaElement | HTMLInputElement) {
 
     // The character the block covers, and the rest of its line so it wraps
     // where the field wraps it.
-    const value = field.value;
+    // A password shows as masks: the VGA font has both browsers' (• and ●),
+    // one cell each, and the block mustn't show what's under them.
+    const value = field.type === 'password' ? '•'.repeat(field.value.length) : field.value;
     const next = value[at];
     const covered = next && next !== '\n' ? next : ' ';
     const lineEnd = value.indexOf('\n', at);

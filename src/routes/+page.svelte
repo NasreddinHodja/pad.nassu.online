@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { blockCaret } from '#lib/caret.ts';
 
   let name = $state('');
 
@@ -33,6 +34,7 @@
         <input
           class="h-8 min-w-0 flex-1 bg-bg px-1 text-fg outline-none placeholder:text-dim pointer-coarse:h-10"
           bind:value={name}
+          {@attach blockCaret}
           {@attach (el) => el.focus()}
           placeholder="my/notes"
           aria-label="pad path"
