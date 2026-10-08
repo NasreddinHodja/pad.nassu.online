@@ -19,7 +19,7 @@ The routes under =/_/= that the page calls (=src/lib/api.ts=). Everything sent i
 
 ** POST /_/<root>/auth/claim
 
-Sets a free root's password and unlocks it for this browser.
+Sets a free root's password and unlocks it for this browser. A deleted root counts as free: it's purged first.
 
 Body: ={"salt": 16 bytes, "auth": 32 bytes, "sealedKey": 60 bytes}=.
 
@@ -30,7 +30,7 @@ Body: ={"salt": 16 bytes, "auth": 32 bytes, "sealedKey": 60 bytes}=.
 
 Body: ={"auth": 32 bytes}=.
 
-+ =200= ={"sealedKey": 60 bytes}=, with the unlock cookie.
++ =200= ={"sealedKey": 60 bytes}=, with the unlock cookie. A deleted root is reclaimed.
 + =401= for a wrong =auth=. After 5, each failure doubles the wait, up to 15 minutes; meanwhile =429=, with the wait in the message. A browser whose device cookie has unlocked the root before is counted on its own; any other per address, IPv6 per /64. Nothing is counted per root, so no one can keep others out of it.
 
 A successful claim, unlock or password change also sets the device cookie, =__Host-pad-device=, and records it for the root.
@@ -40,6 +40,12 @@ A successful claim, unlock or password change also sets the device cookie, =__Ho
 /Unlocked./ Body: ={"current": 32 bytes, "salt": 16 bytes, "auth": 32 bytes, "sealedKey": 60 bytes}=: the current =auth=, then the new password's. =current= is checked and backed off as in unlock.
 
 + =204=. Every other browser's unlock of the root is revoked.
+
+** POST /_/<root>/auth/delete
+
+/Unlocked./ Marks the root and its pads deleted, and signs every browser out of it. =204=.
+
+Until it's purged, 30 days on, unlock with its password reclaims it; claim purges it and claims it anew.
 
 ** POST /_/<root>/auth/lock
 
@@ -64,11 +70,11 @@ Body: ={"paths": ["a/b", …]}=, every one under =<root>=. =204=.
 /Unlocked./ =<id>= is 43 base64url characters.
 
 + =200=, =application/octet-stream=: the sealed text, with =X-Updated-At= in Unix milliseconds.
-+ =204= if there's no such pad.
++ =204= if there's no such pad, or it's been emptied.
 
 ** PUT /_/<root>/pads/<id>
 
-/Unlocked, rate-limited./ Saves a pad; the last write wins.
+/Unlocked, rate-limited./ Saves a pad; the last write wins. Saving an emptied pad brings it back.
 
 + Body: the sealed text, at most 512 KiB + 28 bytes; over: =413=.
 + =X-Pad-Name=: the sealed path, base64url, at most 1400 characters.
@@ -78,7 +84,7 @@ Body: ={"paths": ["a/b", …]}=, every one under =<root>=. =204=.
 
 ** DELETE /_/<root>/pads/<id>
 
-/Unlocked, rate-limited./ What saving an empty pad does. =204=.
+/Unlocked, rate-limited./ What saving an empty pad does: marks it, so it leaves the list and its links 404, and purges it 30 days on unless it's saved again. =204=.
 
 * Read-only links
 
@@ -101,7 +107,7 @@ Body: ={"paths": ["a/b", …]}=, every one under =<root>=. =204=.
 
 ** GET /_/<root>/shares/<link>
 
-Needs nothing: anyone with the link may. =200=, =application/octet-stream=: the sealed copy, with =X-Created-At= in Unix milliseconds. =404= if it was revoked or never made.
+Needs nothing: anyone with the link may. =200=, =application/octet-stream=: the sealed copy, with =X-Created-At= in Unix milliseconds. =404= if it was revoked or never made, or its pad is emptied or its root deleted.
 
 ** DELETE /_/<root>/pads/<id>/shares
 

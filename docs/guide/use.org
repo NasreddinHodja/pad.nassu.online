@@ -3,7 +3,7 @@
 
 * Paths
 
-Any path is a pad: =/notes=, =/notes/today=, =/notes/today/later=. Pads are made by typing in them and deleted by emptying them. A path has up to 10 segments of up to 64 characters, 255 in all; =/_/…= is reserved for the API.
+Any path is a pad: =/notes=, =/notes/today=, =/notes/today/later=. Pads are made by typing in them and deleted by emptying them: an emptied pad leaves its parent's list, and its read-only links stop working; typing in it again within 30 days brings the links back, and after that it's gone for good. A path has up to 10 segments of up to 64 characters, 255 in all; =/_/…= is reserved for the API.
 
 * Roots and passwords
 
@@ -13,6 +13,7 @@ The first segment is the path's root: =/notes/today= belongs to =notes=.
 + A locked root asks for its password. Five wrong ones are free; after that each waits twice as long as the last, up to 15 minutes. A browser that has unlocked the root before, even if it locked since, only waits for its own wrong passwords; any other only for its address's (for IPv6, its /64's). No one else's wrong passwords ever make you wait.
 + *password*, in a pad's header, changes the root's password. Every other browser is signed out of the root.
 + *lock* signs this browser out of the root and forgets its keys.
++ *delete*, in a root's header, asks first, then deletes the root and every pad under it, stops its read-only links and signs every browser out. For 30 days the root's page offers *reclaim it*: its old password brings back all of it, links included. Claiming the root anew instead, or 30 days passing, deletes it for good.
 
 An unlock lasts 30 days unused, at most 180. The password can't be recovered: the pads are encrypted with it, so losing it loses them.
 
