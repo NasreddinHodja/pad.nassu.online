@@ -92,7 +92,7 @@
         api.list(where.root, where.keys)
       ]);
       content = saved = text;
-      subpads = under(paths, where.path);
+      subpads = under(paths, where.path).filter((p) => !p.includes('/'));
       status = 'saved';
       ready = true;
       requestAnimationFrame(() => {
