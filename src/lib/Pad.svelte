@@ -2,6 +2,7 @@
   import { beforeNavigate, goto } from '$app/navigation';
   import { onMount, tick, untrack } from 'svelte';
   import * as api from './api';
+  import { blockCaret } from './caret';
   import { forgetKeys, type Keys } from './crypto';
   import { collect, download, exportPads } from './export';
   import Finder from './Finder.svelte';
@@ -291,6 +292,7 @@
 
   <textarea
     bind:this={textarea}
+    {@attach blockCaret}
     readonly={!ready}
     bind:value={content}
     {oninput}
