@@ -108,8 +108,30 @@ export function blockCaret(field: HTMLTextAreaElement | HTMLInputElement) {
     block.style.animation = '';
   }
 
+  // The field can move with nothing firing on it, as when a line appears
+  // above it: while it's focused, every frame checks where it is.
+  let watching = 0;
+  let where = '';
+  function watch() {
+    if (document.activeElement !== field) return;
+    const box = field.getBoundingClientRect();
+    const now = [box.left, box.top, box.width, box.height].join();
+    if (now !== where) {
+      where = now;
+      place();
+    }
+    watching = requestAnimationFrame(watch);
+  }
+  const onfocus = () => {
+    cancelAnimationFrame(watching);
+    where = '';
+    watching = requestAnimationFrame(watch);
+  };
+
   const fieldEvents = ['input', 'focus', 'blur', 'scroll', 'keydown', 'keyup', 'pointerup'];
   for (const e of fieldEvents) field.addEventListener(e, schedule);
+  field.addEventListener('focus', onfocus);
+  if (document.activeElement === field) onfocus();
   document.addEventListener('selectionchange', schedule);
   window.addEventListener('resize', schedule);
   window.addEventListener('scroll', schedule, true);
@@ -119,7 +141,9 @@ export function blockCaret(field: HTMLTextAreaElement | HTMLInputElement) {
 
   return () => {
     cancelAnimationFrame(frame);
+    cancelAnimationFrame(watching);
     for (const e of fieldEvents) field.removeEventListener(e, schedule);
+    field.removeEventListener('focus', onfocus);
     document.removeEventListener('selectionchange', schedule);
     window.removeEventListener('resize', schedule);
     window.removeEventListener('scroll', schedule, true);
